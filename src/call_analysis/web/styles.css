@@ -1,0 +1,288 @@
+:root {
+  --bg: #0a0a0f;
+  --bg2: #12121a;
+  --panel: #16161f;
+  --card: #1a1a26;
+  --border: #2a2a3d;
+  --text: #e8e8ef;
+  --muted: #8b8ba3;
+  --nvidia: #76b900;
+  --nvidia-dim: #5a8f00;
+  --nvidia-glow: rgba(118, 185, 0, 0.25);
+  --danger: #ff5c5c;
+  --warn: #ffb020;
+  --info: #4da3ff;
+  --radius: 12px;
+  --font: "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  font-family: var(--font);
+  background: radial-gradient(1200px 600px at 10% -10%, #1a2a0a 0%, transparent 50%),
+              radial-gradient(900px 500px at 100% 0%, #0d1a2a 0%, transparent 45%),
+              var(--bg);
+  color: var(--text);
+}
+
+.app { display: grid; grid-template-columns: 300px 1fr; min-height: 100vh; }
+
+.sidebar {
+  background: linear-gradient(180deg, #101018 0%, #0c0c12 100%);
+  border-right: 1px solid var(--border);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.brand { display: flex; gap: 0.75rem; align-items: center; margin-bottom: 0.5rem; }
+.logo {
+  background: var(--nvidia);
+  color: #0a0a0f;
+  font-weight: 800;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  padding: 0.55rem 0.45rem;
+  border-radius: 8px;
+}
+.brand h1 { margin: 0; font-size: 1.1rem; }
+.tag { margin: 0; color: var(--muted); font-size: 0.75rem; }
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.85rem;
+}
+.panel h2 { margin: 0 0 0.6rem; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+
+.btn, .file-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 100%;
+  border: none;
+  border-radius: 8px;
+  padding: 0.65rem 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--nvidia);
+  color: #0a0a0f;
+  transition: transform 0.1s, box-shadow 0.15s, background 0.15s;
+}
+.btn:hover, .file-btn:hover { background: #89d100; box-shadow: 0 0 20px var(--nvidia-glow); }
+.btn:active, .file-btn:active { transform: scale(0.98); }
+.btn.secondary { background: transparent; color: var(--nvidia); border: 1px solid var(--nvidia-dim); margin-top: 0.5rem; }
+.btn.ghost { width: auto; background: transparent; color: var(--muted); border: 1px solid var(--border); padding: 0.25rem 0.5rem; }
+.hint { color: var(--muted); font-size: 0.72rem; margin: 0.5rem 0 0; }
+.btn.compact { width: auto; padding: 0.4rem 0.75rem; font-size: 0.8rem; margin: 0; }
+.top-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 0.5rem; }
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem;
+}
+.stat {
+  background: #101018;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.45rem;
+  text-align: center;
+}
+.stat .sv {
+  display: block;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--nvidia);
+}
+.stat .sl {
+  font-size: 0.65rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.progress-wrap { margin-top: 0.65rem; max-width: 420px; }
+.progress-wrap.hidden { display: none; }
+.progress-bar {
+  height: 8px;
+  background: #1a1a26;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--nvidia-dim), var(--nvidia));
+  box-shadow: 0 0 12px var(--nvidia-glow);
+  transition: width 0.35s ease;
+}
+.progress-label {
+  display: block;
+  margin-top: 0.3rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.call-list .prog {
+  height: 3px;
+  background: #222;
+  border-radius: 2px;
+  margin-top: 0.3rem;
+  overflow: hidden;
+}
+.call-list .prog > i {
+  display: block;
+  height: 100%;
+  background: var(--nvidia);
+}
+
+.call-list { list-style: none; margin: 0; padding: 0; max-height: 45vh; overflow: auto; }
+.call-list li {
+  padding: 0.55rem 0.6rem;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  margin-bottom: 0.35rem;
+}
+.call-list li:hover { background: #1e1e2c; }
+.call-list li.active { border-color: var(--nvidia-dim); background: rgba(118,185,0,0.08); }
+.call-list .fn { font-size: 0.8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.call-list .meta { font-size: 0.7rem; color: var(--muted); display: flex; justify-content: space-between; gap: 0.5rem; margin-top: 0.15rem; }
+
+.status-bar {
+  margin-top: auto;
+  font-size: 0.72rem;
+  color: var(--muted);
+  border-top: 1px solid var(--border);
+  padding-top: 0.75rem;
+}
+.status-bar.ok { color: var(--nvidia); }
+.status-bar.bad { color: var(--danger); }
+
+.main { padding: 1.25rem 1.5rem 2rem; overflow: auto; }
+.topbar { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; margin-bottom: 1rem; }
+.topbar h2 { margin: 0; font-size: 1.35rem; }
+.muted { color: var(--muted); font-size: 0.85rem; margin: 0.25rem 0 0; }
+
+.badges { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.pill {
+  display: inline-flex; align-items: center;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: #222233;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+.pill.ok { background: rgba(118,185,0,0.15); border-color: var(--nvidia-dim); color: var(--nvidia); }
+.pill.warn { background: rgba(255,176,32,0.12); border-color: #8a6200; color: var(--warn); }
+.pill.err { background: rgba(255,92,92,0.12); border-color: #8a2020; color: var(--danger); }
+
+.grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 1rem;
+}
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.25);
+}
+.card.span-2 { grid-column: 1 / -1; }
+.card-h { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
+.card-h h3 { margin: 0; font-size: 0.95rem; }
+
+#waveform {
+  width: 100%;
+  display: block;
+  background: linear-gradient(180deg, #10141a, #0c1014);
+  border-radius: 8px;
+  border: 1px solid #1e2a1a;
+}
+
+.score-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+.score {
+  background: #12121c;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.65rem;
+  text-align: center;
+}
+.score .val {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--nvidia);
+  text-shadow: 0 0 18px var(--nvidia-glow);
+}
+.score .lbl { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+
+.transcript {
+  max-height: 320px;
+  overflow: auto;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+}
+.seg { padding: 0.35rem 0.4rem; border-left: 3px solid transparent; margin-bottom: 0.25rem; }
+.seg.s0 { border-color: var(--nvidia); background: rgba(118,185,0,0.05); }
+.seg.s1 { border-color: var(--info); background: rgba(77,163,255,0.05); }
+.seg .who { font-size: 0.72rem; color: var(--muted); margin-bottom: 0.1rem; }
+
+.agents { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0.75rem; }
+.agent-card {
+  background: #12121c;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.75rem;
+}
+.agent-card h4 { margin: 0 0 0.35rem; font-size: 0.85rem; color: var(--nvidia); }
+.agent-card p { margin: 0; font-size: 0.82rem; color: var(--text); opacity: 0.9; }
+.agent-card ul { margin: 0.4rem 0 0; padding-left: 1.1rem; font-size: 0.78rem; color: var(--muted); }
+
+.copilot-log {
+  min-height: 100px;
+  max-height: 220px;
+  overflow: auto;
+  background: #101018;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75rem;
+  margin-bottom: 0.6rem;
+  font-size: 0.88rem;
+}
+.copilot-log .q { color: var(--info); margin-bottom: 0.25rem; }
+.copilot-log .a { color: var(--text); margin-bottom: 0.75rem; white-space: pre-wrap; }
+.copilot-form { display: flex; gap: 0.5rem; }
+.copilot-form input {
+  flex: 1;
+  background: #101018;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 0.65rem 0.8rem;
+}
+.copilot-form .btn { width: auto; min-width: 90px; }
+
+.row-between { display: flex; justify-content: space-between; align-items: center; }
+
+.toast {
+  position: fixed; bottom: 1.25rem; right: 1.25rem;
+  background: #1c1c28; border: 1px solid var(--nvidia-dim);
+  color: var(--text); padding: 0.75rem 1rem; border-radius: 10px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.4); z-index: 50;
+  max-width: 360px;
+}
+.toast.hidden { display: none; }
+
+@media (max-width: 960px) {
+  .app { grid-template-columns: 1fr; }
+  .grid { grid-template-columns: 1fr; }
+  .card.span-2 { grid-column: auto; }
+  .sidebar { border-right: none; border-bottom: 1px solid var(--border); }
+}

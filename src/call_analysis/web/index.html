@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Call Analysis — NVIDIA Contact Center Intelligence</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+  <link rel="stylesheet" href="/static/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="logo">NVIDIA</div>
+        <div>
+          <h1>Call Analysis</h1>
+          <p class="tag">Contact Center Intelligence</p>
+        </div>
+      </div>
+
+      <div class="panel upload-panel">
+        <h2>Ingest</h2>
+        <label class="file-btn">
+          <input type="file" id="fileInput" accept="audio/*,.m4a,.wav,.mp3" hidden />
+          Upload Recording
+        </label>
+        <button id="importBtn" class="btn secondary" type="button">Import 1 sample</button>
+        <button id="importBatchBtn" class="btn secondary" type="button">Import batch (3)</button>
+        <p class="hint">Text/voice · local bucket/folder/file</p>
+      </div>
+
+      <div class="panel stats-panel" id="statsPanel">
+        <h2>Fleet analytics</h2>
+        <div class="stats-grid" id="statsGrid">
+          <div class="stat"><span class="sv" id="statTotal">—</span><span class="sl">Calls</span></div>
+          <div class="stat"><span class="sv" id="statQa">—</span><span class="sl">Avg QA</span></div>
+          <div class="stat"><span class="sv" id="statComp">—</span><span class="sl">Compliance</span></div>
+          <div class="stat"><span class="sv" id="statPii">—</span><span class="sl">PII hits</span></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="row-between">
+          <h2>Calls</h2>
+          <button id="refreshBtn" class="btn ghost" type="button">↻</button>
+        </div>
+        <ul id="callList" class="call-list"></ul>
+      </div>
+
+      <div class="status-bar" id="healthBar">Checking NVIDIA…</div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <h2 id="callTitle">Select or upload a call</h2>
+          <p id="callMeta" class="muted">Pipeline: ASR → Diarization → PII → Multi-agent analysis</p>
+          <div class="progress-wrap hidden" id="progressWrap">
+            <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+            <span class="progress-label" id="progressLabel"></span>
+          </div>
+        </div>
+        <div class="top-actions">
+          <button id="reanalyzeBtn" class="btn secondary compact hidden" type="button">Re-analyze</button>
+          <div class="badges" id="statusBadges"></div>
+        </div>
+      </header>
+
+      <section class="grid">
+        <div class="card span-2">
+          <div class="card-h">
+            <h3>Dynamic Waveform Viewer</h3>
+            <span id="durationLabel" class="muted"></span>
+          </div>
+          <canvas id="waveform" height="96"></canvas>
+        </div>
+
+        <div class="card">
+          <div class="card-h"><h3>Agent Scorecard</h3></div>
+          <div id="scorecards" class="score-grid"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-h"><h3>Sentiment Charts</h3></div>
+          <canvas id="sentimentChart" height="180"></canvas>
+        </div>
+
+        <div class="card span-2">
+          <div class="card-h"><h3>Interactive Transcript</h3>
+            <span id="piiBadge" class="pill"></span>
+          </div>
+          <div id="transcript" class="transcript"></div>
+        </div>
+
+        <div class="card span-2">
+          <div class="card-h"><h3>AI Agent Insights</h3></div>
+          <div id="agents" class="agents"></div>
+        </div>
+
+        <div class="card span-2">
+          <div class="card-h"><h3>Interactive Call Copilot (RAG)</h3></div>
+          <div class="copilot">
+            <div id="copilotLog" class="copilot-log"></div>
+            <form id="copilotForm" class="copilot-form">
+              <input id="copilotInput" type="text" placeholder="Ask about this call…" autocomplete="off" />
+              <button class="btn" type="submit">Ask</button>
+            </form>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <div id="toast" class="toast hidden"></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

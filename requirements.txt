@@ -1,0 +1,48 @@
+# Contact center intelligence platform — production dependencies
+# Core web framework
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+pydantic>=2.10.0
+pydantic-settings>=2.8.0
+python-multipart>=0.0.9
+httpx>=0.28.0
+
+# Database & ORM
+sqlalchemy>=2.0.30
+alembic>=1.14.0
+psycopg[binary,pool]>=3.2.0
+redis>=5.2.0
+
+# Task queue
+celery>=5.4.0
+kombu>=5.4.0
+
+# Authentication & Security
+python-jose[cryptography]>=3.4.0
+passlib[bcrypt]>=1.7.4
+python-dotenv>=1.0.0
+slowapi>=0.1.9
+cryptography>=42.0.0
+
+# Observability
+structlog>=25.1.0
+opentelemetry-api>=1.28.0
+opentelemetry-sdk>=1.28.0
+opentelemetry-instrumentation-fastapi>=0.48.0
+opentelemetry-instrumentation-sqlalchemy>=0.48.0
+opentelemetry-instrumentation-redis>=0.48.0
+opentelemetry-instrumentation-httpx>=0.48.0
+opentelemetry-exporter-otlp>=1.28.0
+prometheus-client>=0.20.0
+
+# Audio processing
+numpy>=2.0.0
+faster-whisper>=1.1.0
+librosa>=0.11.0
+
+# Utilities
+python-json-logger>=3.2.0
+tenacity>=8.5.0
+pyyaml>=6.0.1
+rich>=13.7.0
+typer>=0.12.0

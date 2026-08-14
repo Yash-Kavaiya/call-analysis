@@ -1,0 +1,70 @@
+# Secrets — never commit API keys
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# Call recordings (large audio files)
+*.m4a
+*.wav
+*.mp3
+*.ogg
+*.flac
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+.env/
+*.egg-info/
+.eggs/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Local app data
+data/
+outputs/
+logs/
+*.log
+.cache/
+
+# Build artifacts
+dist/
+build/
+*.spec
+
+# Docker
+.docker/
+
+# Temporary files
+*.tmp
+*.temp
+
+# Images
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.svg

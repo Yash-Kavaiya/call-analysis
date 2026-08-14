@@ -1,0 +1,218 @@
+[build-system]
+requires = ["setuptools>=68", "setuptools-scm>=8"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "call-analysis"
+version = "0.4.0"
+description = "NVIDIA-powered contact center intelligence platform — production ready"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [{name = "Call Analysis Team", email = "team@call-analysis.local"}]
+keywords = ["contact-center", "call-analysis", "nvidia", "nim", "asr", "diarization", "pii", "llm-agents"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Telecommunications Industry",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Communications :: Telephony",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    # Core web framework
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.8.0",
+    "python-multipart>=0.0.9",
+    "httpx>=0.28.0",
+
+    # Database & ORM
+    "sqlalchemy>=2.0.30",
+    "alembic>=1.14.0",
+    "psycopg[binary,pool]>=3.2.0",
+    "redis>=5.2.0",
+
+    # Task queue
+    "celery>=5.4.0",
+    "kombu>=5.4.0",
+
+    # Authentication & Security
+    "python-jose[cryptography]>=3.4.0",
+    "passlib[bcrypt]>=1.7.4",
+    "python-dotenv>=1.0.0",
+    "slowapi>=0.1.9",
+    "cryptography>=42.0.0",
+
+    # Observability
+    "structlog>=25.1.0",
+    "opentelemetry-api>=1.28.0",
+    "opentelemetry-sdk>=1.28.0",
+    "opentelemetry-instrumentation-fastapi>=0.48.0",
+    "opentelemetry-instrumentation-sqlalchemy>=0.48.0",
+    "opentelemetry-instrumentation-redis>=0.48.0",
+    "opentelemetry-instrumentation-httpx>=0.48.0",
+    "opentelemetry-exporter-otlp>=1.28.0",
+    "prometheus-client>=0.20.0",
+
+    # Audio processing
+    "numpy>=2.0.0",
+    "faster-whisper>=1.1.0",
+    "librosa>=0.11.0",
+
+    # Utilities
+    "python-json-logger>=3.2.0",
+    "tenacity>=8.5.0",
+    "pyyaml>=6.0.1",
+    "rich>=13.7.0",
+    "typer>=0.12.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=6.0.0",
+    "pytest-mock>=3.14.0",
+    "httpx>=0.28.0",
+    "faker>=33.0.0",
+    "ruff>=0.6.0",
+    "mypy>=1.11.0",
+    "pre-commit>=4.0.0",
+]
+test = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=6.0.0",
+    "pytest-mock>=3.14.0",
+    "httpx>=0.28.0",
+    "faker>=33.0.0",
+    "testcontainers>=4.9.0",
+]
+docs = [
+    "mkdocs-material>=9.5.0",
+    "mkdocstrings[python]>=0.26.0",
+]
+prod = [
+    "gunicorn>=23.0.0",
+    "uvloop>=0.21.0",
+    "watchfiles>=0.22.0",
+]
+windows = [
+    "pyinstaller>=6.8.0",
+    "pywin32>=308",
+    "winsvc>=12.0.0",
+]
+diarization = [
+    "pyannote.audio>=3.3.0",
+    "torch>=2.4.0",
+    "torchaudio>=2.4.0",
+]
+
+[project.scripts]
+nim-validate = "call_analysis.cli:validate_nim"
+call-analysis = "call_analysis.serve:main"
+call-process = "call_analysis.process_cli:main"
+call-worker = "call_analysis.worker:main"
+call-migrate = "call_analysis.migrate:main"
+call-init-db = "call_analysis.init_db:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["call_analysis*"]
+
+[tool.setuptools.package-data]
+call_analysis = ["web/**/*", "alembic/**/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+asyncio_mode = "auto"
+addopts = "-ra -q --strict-markers --strict-config"
+markers = [
+    "unit: Unit tests",
+    "integration: Integration tests",
+    "e2e: End-to-end tests",
+    "slow: Slow tests",
+    "requires_nvidia: Requires NVIDIA_API_KEY",
+    "requires_db: Requires database",
+    "requires_redis: Requires Redis",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+select = ["E", "F", "I", "UP", "W", "C4", "C9", "ANN", "ARG", "B", "COM", "DTZ", "EXE", "FA", "ISC", "ICN", "PIE", "PT", "Q", "RET", "SIM", "T20", "TCH", "TRY", "PD", "PL", "RSE", "RUF", "SLF", "SLOT", "TID", "TRY"]
+ignore = ["ANN101", "ANN102", "ARG001", "ARG002", "COM812", "C901", "D100", "D101", "D102", "D103", "D104", "D105", "D106", "D107", "INP001", "PIE787", "PT004", "PT007", "PT012", "RET503", "RUF012", "S101", "SLF001", "T201", "T203", "TRY003"]
+fixable = ["F", "I", "UP", "W", "C4", "C9", "ANN", "ARG", "B", "COM", "DTZ", "EXE", "FA", "ISC", "ICN", "PIE", "PT", "Q", "RET", "SIM", "T20", "TCH", "TRY", "PD", "PL", "RSE", "RUF", "SLF", "SLOT", "TID"]
+per-file-ignores = { "tests/*" = ["S101", "SLF001", "ARG001"] }
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+docstring-code-format = true
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+strict_optional = true
+implicit_reexport = true
+allow_untyped_globals = false
+enable_error_code = ["ignore-without-code"]
+namespace_packages = true
+explicit_package_bases = true
+mypy_path = "src"
+
+[tool.coverage.run]
+source = ["src/call_analysis"]
+omit = ["**/tests/**", "**/migrations/**", "**/alembic/**"]
+
+[tool.coverage.report]
+exclude_lines = ["pragma: no cover", "def __repr__", "raise AssertionError", "raise NotImplementedError"]
+show_missing = true
+precision = 2
+
+[tool.alembic]
+script_location = "call_analysis:alembic"
+version_locations = "call_analysis:alembic/versions"
+sqlalchemy.url = "postgresql://user:pass@localhost:5432/call_analysis"
+
+[tool.pyinstaller]
+name = "CallAnalysis"
+onefile = false
+windowed = false
+console = true
+icon = "assets/icon.ico"
+add-data = [
+    "src/call_analysis/web:call_analysis/web",
+    "src/call_analysis/alembic:call_analysis/alembic",
+]
+hidden-imports = [
+    "sqlalchemy.dialects.postgresql",
+    "celery.loaders.default",
+    "opentelemetry.instrumentation.fastapi",
+    "opentelemetry.instrumentation.sqlalchemy",
+    "opentelemetry.instrumentation.redis",
+    "opentelemetry.instrumentation.httpx",
+    "prometheus_client",
+    "structlog",
+    "passlib.handlers.bcrypt",
+    "jose.backends.rsa_backend",
+]
+collect-all = ["call_analysis"]
+exclude-module = ["pytest", "mkdocs", "sphinx", "black", "ruff", "mypy"]
+
+[tool.setuptools_scm]
+version_scheme = "release-branch-semver"
+tag_regex = "^v?(\\d+\\.\\d+\\.\\d+)$"
