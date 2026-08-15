@@ -7,8 +7,10 @@ the dashboard works without Docker, PostgreSQL, or Redis.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
+import sys
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
@@ -272,17 +274,18 @@ async def health(request: Request) -> HealthResponse:
 
     db_ok = False
     redis_ok = False
-    if not settings.is_testing and not _in_pytest():
+    is_desktop = os.environ.get("CALL_ANALYSIS_ELECTRON") == "1" or getattr(sys, "frozen", False)
+    if not settings.is_testing and not _in_pytest() and not is_desktop:
         try:
             from call_analysis.database import check_db_connection
 
-            db_ok = await check_db_connection()
+            db_ok = await asyncio.wait_for(check_db_connection(), timeout=0.3)
         except Exception:
             db_ok = False
         try:
             from call_analysis.redis_client import check_redis_connection
 
-            redis_ok = await check_redis_connection()
+            redis_ok = await asyncio.wait_for(check_redis_connection(), timeout=0.3)
         except Exception:
             redis_ok = False
 

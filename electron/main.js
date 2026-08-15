@@ -117,6 +117,7 @@ function devBackendCommand(port) {
       PYTHONPATH: path.join(projectRoot, "src"),
       CALL_ANALYSIS_NO_BROWSER: "1",
       CALL_ANALYSIS_ELECTRON: "1",
+      OTEL_ENABLED: process.env.OTEL_ENABLED || "false",
       LOG_FORMAT: process.env.LOG_FORMAT || "console",
     },
   };
@@ -140,6 +141,7 @@ function packagedBackendCommand(port) {
       ...process.env,
       CALL_ANALYSIS_NO_BROWSER: "1",
       CALL_ANALYSIS_ELECTRON: "1",
+      OTEL_ENABLED: process.env.OTEL_ENABLED || "false",
     },
   };
 }
@@ -198,7 +200,7 @@ function startBackend(port) {
 function healthCheck(port) {
   return new Promise((resolve) => {
     const req = http.get(
-      { host: "127.0.0.1", port, path: "/api/health", timeout: 1500 },
+      { host: "127.0.0.1", port, path: "/api/health", timeout: 5000 },
       (res) => {
         res.resume();
         resolve(res.statusCode === 200);
