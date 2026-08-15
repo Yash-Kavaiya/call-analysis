@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import os
 import secrets
 from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
-from pydantic import Field, PostgresDsn, RedisDsn, computed_field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field, computed_field, field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class DatabaseSettings(BaseSettings):
@@ -32,12 +31,16 @@ class DatabaseSettings(BaseSettings):
     @computed_field
     @property
     def url(self) -> str:
-        return f"postgresql+psycopg://{self.user}:{self.password}@{self.host}:{self.port}/{self.name}"
+        return (
+            f"postgresql+psycopg://{self.user}:{self.password}@{self.host}:{self.port}/{self.name}"
+        )
 
     @computed_field
     @property
     def async_url(self) -> str:
-        return f"postgresql+asyncpg://{self.user}:{self.password}@{self.host}:{self.port}/{self.name}"
+        return (
+            f"postgresql+asyncpg://{self.user}:{self.password}@{self.host}:{self.port}/{self.name}"
+        )
 
 
 class RedisSettings(BaseSettings):
@@ -165,6 +168,12 @@ class AuthSettings(BaseSettings):
     @field_validator("secret_key")
     @classmethod
     def validate_secret_key(cls, v: str) -> str:
+        # docker-compose injects an empty value when the host var is unset
+        # (AUTH_SECRET_KEY=${AUTH_SECRET_KEY}) — treat blank as "not set" and
+        # fall back to a freshly generated key instead of crashing startup.
+        v = (v or "").strip()
+        if not v:
+            return secrets.token_urlsafe(32)
         if len(v) < 32:
             raise ValueError("AUTH_SECRET_KEY must be at least 32 characters")
         return v
@@ -224,7 +233,9 @@ class TelemetrySettings(BaseSettings):
     environment: str = "development"
     exporter_endpoint: str = "http://localhost:4317"
     exporter_headers: dict[str, str] = {}
-    traces_sampler: Literal["always_on", "always_off", "parentbased_always_on", "parentbased_always_off", "traceidratio"] = "parentbased_always_on"
+    traces_sampler: Literal[
+        "always_on", "always_off", "parentbased_always_on", "parentbased_always_off", "traceidratio"
+    ] = "parentbased_always_on"
     traces_sampler_arg: float = 1.0
     metrics_interval: int = 60
     propagators: list[str] = ["tracecontext", "baggage"]
@@ -240,12 +251,36 @@ class StorageSettings(BaseSettings):
     calls_dir: Path = Path("data/calls")
     audio_dir: Path = Path("data/audio")
     max_upload_size: int = 500 * 1024 * 1024  # 500MB
-    allowed_extensions: set[str] = {".m4a", ".wav", ".mp3", ".ogg", ".flac", ".webm"}
+    # NoDecode keeps the raw env string so the validator below can split a
+    # comma-separated value like STORAGE_ALLOWED_EXTENSIONS=.m4a,.wav,.mp3
+    # (documented in .env.example) instead of failing JSON decoding.
+    allowed_extensions: Annotated[set[str], NoDecode] = {
+        ".m4a",
+        ".wav",
+        ".mp3",
+        ".ogg",
+        ".flac",
+        ".webm",
+    }
     quarantine_dir: Path = Path("data/quarantine")
+
+    @field_validator("allowed_extensions", mode="before")
+    @classmethod
+    def parse_allowed_extensions(cls, v: Any) -> Any:
+        if isinstance(v, str):
+            parts = [p.strip() for p in v.split(",") if p.strip()]
+            return {p if p.startswith(".") else f".{p}" for p in parts}
+        return v
 
     def __init__(self, **data: Any) -> None:
         super().__init__(**data)
-        for d in (self.data_dir, self.uploads_dir, self.calls_dir, self.audio_dir, self.quarantine_dir):
+        for d in (
+            self.data_dir,
+            self.uploads_dir,
+            self.calls_dir,
+            self.audio_dir,
+            self.quarantine_dir,
+        ):
             d.mkdir(parents=True, exist_ok=True)
 
 
@@ -373,10 +408,7 @@ class NvidiaConfig:
 
     def redacted_summary(self) -> str:
         key = self.api_key
-        if len(key) <= 8:
-            masked = "***"
-        else:
-            masked = f"{key[:6]}...{key[-4:]} (len={len(key)})"
+        masked = "***" if len(key) <= 8 else f"{key[:6]}...{key[-4:]} (len={len(key)})"
         return f"base_url={self.base_url}\nmodel={self.model}\napi_key={masked}"
 
 
@@ -396,12 +428,13 @@ def load_nvidia_config(
     if env_file is not None:
         # Load from specific .env file using python-dotenv
         from dotenv import load_dotenv
+
         load_dotenv(env_file, override=override_env)
         # Reload settings to pick up new environment variables
         settings = reload_settings()
     else:
         settings = get_settings()
-    
+
     if require_key and not settings.nvidia.is_configured:
         raise MissingAPIKeyError(
             "NVIDIA_API_KEY is not set. Export it or put it in a local .env file "
@@ -418,27 +451,27 @@ DEFAULT_BASE_URL = "https://integrate.api.nvidia.com/v1"
 DEFAULT_MODEL = "meta/llama-3.1-8b-instruct"
 
 __all__ = [
-    "Settings",
-    "DatabaseSettings",
-    "RedisSettings",
-    "CelerySettings",
-    "NVidiaSettings",
-    "ASRSettings",
-    "DiarizationSettings",
-    "PIUSettings",
-    "AuthSettings",
-    "RateLimitSettings",
-    "CorsSettings",
-    "LoggingSettings",
-    "TelemetrySettings",
-    "FeatureFlags",
-    "ServerSettings",
-    "StorageSettings",
-    "get_settings",
-    "reload_settings",
-    "NvidiaConfig",
-    "MissingAPIKeyError",
-    "load_nvidia_config",
     "DEFAULT_BASE_URL",
     "DEFAULT_MODEL",
+    "ASRSettings",
+    "AuthSettings",
+    "CelerySettings",
+    "CorsSettings",
+    "DatabaseSettings",
+    "DiarizationSettings",
+    "FeatureFlags",
+    "LoggingSettings",
+    "MissingAPIKeyError",
+    "NVidiaSettings",
+    "NvidiaConfig",
+    "PIUSettings",
+    "RateLimitSettings",
+    "RedisSettings",
+    "ServerSettings",
+    "Settings",
+    "StorageSettings",
+    "TelemetrySettings",
+    "get_settings",
+    "load_nvidia_config",
+    "reload_settings",
 ]

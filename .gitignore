@@ -53,6 +53,11 @@ logs/
 dist/
 build/
 *.spec
+CallAnalysisBackend.spec
+
+# Electron
+electron/node_modules/
+electron/dist/
 
 # Docker
 .docker/

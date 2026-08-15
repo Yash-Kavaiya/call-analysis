@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import enum
 import uuid
-from datetime import datetime, timezone
-from typing import TYPE_CHECKING
+from datetime import UTC, datetime
 
 from sqlalchemy import (
     JSON,
@@ -16,14 +15,9 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
-    UniqueConstraint,
-    func,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
-
-if TYPE_CHECKING:
-    from collections.abc import Sequence
 
 
 class Base(DeclarativeBase):
@@ -33,17 +27,17 @@ class Base(DeclarativeBase):
 
 
 def utc_now() -> datetime:
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
-class JobStatus(str, enum.Enum):
+class JobStatus(enum.StrEnum):
     PENDING = "pending"
     PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
 
 
-class UserRole(str, enum.Enum):
+class UserRole(enum.StrEnum):
     ADMIN = "admin"
     ANALYST = "analyst"
     VIEWER = "viewer"
@@ -54,9 +48,7 @@ class Organization(Base):
 
     __tablename__ = "organizations"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     slug: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
     settings: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
@@ -68,9 +60,11 @@ class Organization(Base):
         DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
     )
 
-    users: Mapped[list["User"]] = relationship(back_populates="organization", lazy="selectin")
-    calls: Mapped[list["CallRecord"]] = relationship(back_populates="organization", lazy="dynamic")
-    api_keys: Mapped[list["APIKey"]] = relationship(back_populates="organization", lazy="selectin")
+    users: Mapped[list[User]] = relationship(back_populates="organization", lazy="selectin")
+    calls: Mapped[list[CallRecordModel]] = relationship(
+        back_populates="organization", lazy="dynamic"
+    )
+    api_keys: Mapped[list[APIKey]] = relationship(back_populates="organization", lazy="selectin")
 
     def __repr__(self) -> str:
         return f"<Organization(id={self.id}, name={self.name!r})>"
@@ -81,11 +75,12 @@ class User(Base):
 
     __tablename__ = "users"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     organization_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -101,8 +96,8 @@ class User(Base):
         DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
     )
 
-    organization: Mapped["Organization"] = relationship(back_populates="users", lazy="selectin")
-    api_keys: Mapped[list["APIKey"]] = relationship(back_populates="user", lazy="selectin")
+    organization: Mapped[Organization] = relationship(back_populates="users", lazy="selectin")
+    api_keys: Mapped[list[APIKey]] = relationship(back_populates="user", lazy="selectin")
 
     __table_args__ = (Index("ix_users_org_email", "organization_id", "email"),)
 
@@ -115,11 +110,12 @@ class APIKey(Base):
 
     __tablename__ = "api_keys"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     organization_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
@@ -135,27 +131,30 @@ class APIKey(Base):
         DateTime(timezone=True), default=utc_now, nullable=False
     )
 
-    organization: Mapped["Organization"] = relationship(back_populates="api_keys", lazy="selectin")
-    user: Mapped["User | None"] = relationship(back_populates="api_keys", lazy="selectin")
+    organization: Mapped[Organization] = relationship(back_populates="api_keys", lazy="selectin")
+    user: Mapped[User | None] = relationship(back_populates="api_keys", lazy="selectin")
 
     def __repr__(self) -> str:
         return f"<APIKey(id={self.id}, name={self.name!r}, prefix={self.prefix})>"
 
 
-class CallRecord(Base):
-    """Analyzed call recording."""
+class CallRecordModel(Base):
+    """Analyzed call recording (SQLAlchemy). Named separately from the dataclass."""
 
     __tablename__ = "calls"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     organization_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     filename: Mapped[str] = mapped_column(String(500), nullable=False)
     source_path: Mapped[str] = mapped_column(String(1000), nullable=False)
-    status: Mapped[JobStatus] = mapped_column(Enum(JobStatus), default=JobStatus.PENDING, nullable=False, index=True)
+    status: Mapped[JobStatus] = mapped_column(
+        Enum(JobStatus), default=JobStatus.PENDING, nullable=False, index=True
+    )
     error: Mapped[str | None] = mapped_column(Text)
     progress_pct: Mapped[float] = mapped_column(default=0.0, nullable=False)
     progress_message: Mapped[str] = mapped_column(default="", nullable=False)
@@ -176,8 +175,10 @@ class CallRecord(Base):
     )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
-    organization: Mapped["Organization"] = relationship(back_populates="calls", lazy="selectin")
-    events: Mapped[list["CallEvent"]] = relationship(back_populates="call", lazy="dynamic", order_by="CallEvent.created_at")
+    organization: Mapped[Organization] = relationship(back_populates="calls", lazy="selectin")
+    events: Mapped[list[CallEvent]] = relationship(
+        back_populates="call", lazy="dynamic", order_by="CallEvent.created_at"
+    )
 
     __table_args__ = (
         Index("ix_calls_org_status", "organization_id", "status"),
@@ -185,7 +186,10 @@ class CallRecord(Base):
     )
 
     def __repr__(self) -> str:
-        return f"<CallRecord(id={self.id}, filename={self.filename!r}, status={self.status.value})>"
+        return (
+            f"<CallRecordModel(id={self.id}, filename={self.filename!r}, "
+            f"status={self.status.value})>"
+        )
 
 
 class CallEvent(Base):
@@ -193,9 +197,7 @@ class CallEvent(Base):
 
     __tablename__ = "call_events"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     call_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("calls.id", ondelete="CASCADE"), nullable=False, index=True
     )
@@ -207,7 +209,7 @@ class CallEvent(Base):
         DateTime(timezone=True), default=utc_now, nullable=False, index=True
     )
 
-    call: Mapped["CallRecord"] = relationship(back_populates="events", lazy="selectin")
+    call: Mapped[CallRecordModel] = relationship(back_populates="events", lazy="selectin")
 
     __table_args__ = (Index("ix_call_events_call_type", "call_id", "event_type"),)
 
@@ -220,11 +222,12 @@ class Webhook(Base):
 
     __tablename__ = "webhooks"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     organization_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     url: Mapped[str] = mapped_column(String(500), nullable=False)
@@ -241,7 +244,7 @@ class Webhook(Base):
         DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
     )
 
-    organization: Mapped["Organization"] = relationship(lazy="selectin")
+    organization: Mapped[Organization] = relationship(lazy="selectin")
 
     def __repr__(self) -> str:
         return f"<Webhook(id={self.id}, name={self.name!r}, url={self.url!r})>"
@@ -252,11 +255,12 @@ class WebhookDelivery(Base):
 
     __tablename__ = "webhook_deliveries"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     webhook_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("webhooks.id", ondelete="CASCADE"), nullable=False, index=True
+        UUID(as_uuid=True),
+        ForeignKey("webhooks.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     event_type: Mapped[str] = mapped_column(String(50), nullable=False)
     payload: Mapped[dict] = mapped_column(JSON, nullable=False)
@@ -268,12 +272,15 @@ class WebhookDelivery(Base):
         DateTime(timezone=True), default=utc_now, nullable=False, index=True
     )
 
-    webhook: Mapped["Webhook"] = relationship(lazy="selectin")
+    webhook: Mapped[Webhook] = relationship(lazy="selectin")
 
     __table_args__ = (Index("ix_webhook_deliveries_webhook_created", "webhook_id", "created_at"),)
 
     def __repr__(self) -> str:
-        return f"<WebhookDelivery(webhook_id={self.webhook_id}, event={self.event_type!r}, attempt={self.attempt})>"
+        return (
+            f"<WebhookDelivery(webhook_id={self.webhook_id}, "
+            f"event={self.event_type!r}, attempt={self.attempt})>"
+        )
 
 
 class SystemMetric(Base):
@@ -292,26 +299,22 @@ class SystemMetric(Base):
     __table_args__ = (Index("ix_system_metrics_name_time", "metric_name", "timestamp"),)
 
     def __repr__(self) -> str:
-        return f"<SystemMetric(name={self.metric_name!r}, value={self.metric_value}, labels={self.labels})>"
+        return (
+            f"<SystemMetric(name={self.metric_name!r}, value={self.metric_value}, "
+            f"labels={self.labels})>"
+        )
 
 
 # =============================================================================
 # Domain Models (Dataclasses) - for pipeline data transfer
 # =============================================================================
 
-from dataclasses import asdict, dataclass, field
-from typing import Any
+from dataclasses import asdict, dataclass, field  # noqa: E402
+from typing import Any  # noqa: E402
 
 
 def utc_now_iso() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-
-
-class JobStatus(str, enum.Enum):
-    PENDING = "pending"
-    PROCESSING = "processing"
-    COMPLETED = "completed"
-    FAILED = "failed"
+    return datetime.now(UTC).replace(microsecond=0).isoformat()
 
 
 @dataclass
@@ -425,8 +428,7 @@ class CallRecord:
     def from_dict(cls, data: dict[str, Any]) -> CallRecord:
         agents_raw = data.get("agents") or {}
         agents = {
-            k: AgentResult.from_dict(v) if isinstance(v, dict) else v
-            for k, v in agents_raw.items()
+            k: AgentResult.from_dict(v) if isinstance(v, dict) else v for k, v in agents_raw.items()
         }
         return cls(
             id=str(data["id"]),
@@ -442,12 +444,8 @@ class CallRecord:
             progress_message=str(data.get("progress_message") or ""),
             full_transcript=str(data.get("full_transcript") or ""),
             scrubbed_transcript=str(data.get("scrubbed_transcript") or ""),
-            segments=[
-                TranscriptSegment.from_dict(s) for s in (data.get("segments") or [])
-            ],
-            pii_findings=[
-                PiiFinding.from_dict(p) for p in (data.get("pii_findings") or [])
-            ],
+            segments=[TranscriptSegment.from_dict(s) for s in (data.get("segments") or [])],
+            pii_findings=[PiiFinding.from_dict(p) for p in (data.get("pii_findings") or [])],
             agents=agents,
             waveform_peaks=list(data.get("waveform_peaks") or []),
             metadata=dict(data.get("metadata") or {}),

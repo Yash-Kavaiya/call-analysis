@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
-from typing import Any
+import contextlib
+from typing import TYPE_CHECKING, Any
 
-from call_analysis.config import NvidiaConfig
 from call_analysis.models import AgentResult
 from call_analysis.nim_client import NimError, chat_json
+
+if TYPE_CHECKING:
+    from call_analysis.config import NvidiaConfig
 
 
 def run_structured_agent(
@@ -34,7 +37,7 @@ def run_structured_agent(
             details={"error": str(exc)},
             raw_text="",
         )
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         return AgentResult(
             name=name,
             summary=f"Agent failed: {exc}",
@@ -128,8 +131,6 @@ def heuristic_sentiment_timeline(
                 "speaker": getattr(seg, "speaker", "SPEAKER_00"),
             }
         )
-        try:
+        with contextlib.suppress(Exception):
             seg.sentiment = score
-        except Exception:
-            pass
     return points

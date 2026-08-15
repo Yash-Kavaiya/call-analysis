@@ -5,11 +5,14 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
-from typing import Any, Mapping, Sequence
+from typing import TYPE_CHECKING, Any
 
 import httpx
 
-from call_analysis.config import NvidiaConfig
+if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
+
+    from call_analysis.config import NvidiaConfig
 
 DEFAULT_TIMEOUT_S = 120.0
 CHAT_COMPLETIONS_PATH = "/chat/completions"
@@ -95,7 +98,7 @@ def build_chat_completion_request(
     return url, headers, body
 
 
-def parse_chat_completion_response(
+def parse_chat_completion_response(  # noqa: PLR0912 — response validation branches
     payload: Mapping[str, Any] | str | bytes,
     *,
     status_code: int = 200,

@@ -5,8 +5,8 @@ from call_analysis.audio.diarize import diarize_segments
 from call_analysis.audio.preprocess import extract_waveform_peaks, prepare_wav
 
 __all__ = [
-    "prepare_wav",
-    "extract_waveform_peaks",
-    "transcribe_audio",
     "diarize_segments",
+    "extract_waveform_peaks",
+    "prepare_wav",
+    "transcribe_audio",
 ]

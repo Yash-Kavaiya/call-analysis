@@ -3,15 +3,30 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import uuid
 from pathlib import Path
-from typing import Iterable
+from typing import TYPE_CHECKING
 
 from call_analysis.models import CallRecord, JobStatus, utc_now_iso
 
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
 
 def default_data_dir() -> Path:
+    # Overridable so the Electron shell can keep data under the OS user-data
+    # folder (CALL_ANALYSIS_DATA_DIR or STORAGE_DATA_DIR take precedence).
+    for key in ("CALL_ANALYSIS_DATA_DIR", "STORAGE_DATA_DIR"):
+        value = os.environ.get(key)
+        if value:
+            path = Path(value)
+            path.mkdir(parents=True, exist_ok=True)
+            (path / "uploads").mkdir(exist_ok=True)
+            (path / "calls").mkdir(exist_ok=True)
+            (path / "audio").mkdir(exist_ok=True)
+            return path
     # Project root: src/call_analysis/storage.py → parents[2]
     root = Path(__file__).resolve().parents[2]
     path = root / "data"
@@ -57,7 +72,9 @@ class CallStore:
 
     def list_calls(self) -> list[CallRecord]:
         records: list[CallRecord] = []
-        for path in sorted(self.calls_dir.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True):
+        for path in sorted(
+            self.calls_dir.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True
+        ):
             try:
                 data = json.loads(path.read_text(encoding="utf-8"))
                 records.append(CallRecord.from_dict(data))
@@ -119,11 +136,7 @@ class CallStore:
     ) -> list[Path]:
         root = root or Path(__file__).resolve().parents[2]
         exts = {e.lower() if e.startswith(".") else f".{e.lower()}" for e in extensions}
-        files = [
-            p
-            for p in root.iterdir()
-            if p.is_file() and p.suffix.lower() in exts
-        ]
+        files = [p for p in root.iterdir() if p.is_file() and p.suffix.lower() in exts]
         files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
         if limit is not None:
             files = files[:limit]

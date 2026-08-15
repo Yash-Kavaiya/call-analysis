@@ -30,21 +30,23 @@ _tracer_provider: TracerProvider | None = None
 _meter_provider: MeterProvider | None = None
 
 
-def setup_telemetry(app=None) -> None:
+def setup_telemetry(app: Any = None) -> None:
     """Initialize OpenTelemetry tracing and metrics."""
     global _tracer_provider, _meter_provider
 
     settings = get_settings()
-    
+
     if not settings.telemetry.enabled or settings.is_testing:
         logger.info("Telemetry disabled")
         return
 
-    resource = Resource.create({
-        "service.name": settings.telemetry.service_name,
-        "service.version": settings.telemetry.service_version,
-        "deployment.environment": settings.telemetry.environment,
-    })
+    resource = Resource.create(
+        {
+            "service.name": settings.telemetry.service_name,
+            "service.version": settings.telemetry.service_version,
+            "deployment.environment": settings.telemetry.environment,
+        }
+    )
 
     # Tracer provider
     _tracer_provider = TracerProvider(resource=resource)
@@ -78,9 +80,9 @@ def setup_telemetry(app=None) -> None:
     LoggingInstrumentor().instrument(set_logging_format=True)
 
     logger.info(
-        "OpenTelemetry initialized",
-        service=_settings.telemetry.service_name,
-        endpoint=_settings.telemetry.exporter_endpoint,
+        "OpenTelemetry initialized service=%s endpoint=%s",
+        _settings.telemetry.service_name,
+        _settings.telemetry.exporter_endpoint,
     )
 
 
@@ -156,7 +158,7 @@ queue_depth = meter.create_up_down_counter(
 
 
 @asynccontextmanager
-async def traced_operation(name: str, attributes: dict[str, Any] | None = None):
+async def traced_operation(name: str, attributes: dict[str, Any] | None = None) -> Any:
     """Context manager for tracing an operation."""
     tracer = get_tracer("call_analysis")
     with tracer.start_as_current_span(name, kind=SpanKind.INTERNAL) as span:
@@ -174,7 +176,9 @@ async def traced_operation(name: str, attributes: dict[str, Any] | None = None):
 def record_call_processed(organization_id: str, status: str, duration: float) -> None:
     """Record call processing metrics."""
     calls_processed.add(1, {"organization_id": organization_id, "status": status})
-    call_processing_duration.record(duration, {"organization_id": organization_id, "status": status})
+    call_processing_duration.record(
+        duration, {"organization_id": organization_id, "status": status}
+    )
     if status == "failed":
         calls_failed.add(1, {"organization_id": organization_id})
 
@@ -189,7 +193,14 @@ def record_api_request(method: str, path: str, status_code: int, duration: float
 
 def record_webhook_delivery(organization_id: str, event_type: str, success: bool) -> None:
     """Record webhook delivery metrics."""
-    webhook_deliveries.add(1, {"organization_id": organization_id, "event_type": event_type, "success": str(success).lower()})
+    webhook_deliveries.add(
+        1,
+        {
+            "organization_id": organization_id,
+            "event_type": event_type,
+            "success": str(success).lower(),
+        },
+    )
 
 
 def set_active_jobs(count: int) -> None:

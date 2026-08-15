@@ -4,27 +4,30 @@ from __future__ import annotations
 
 import hashlib
 import secrets
-from datetime import datetime, timedelta, timezone
-from typing import Annotated, Optional
+from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING, Annotated, Any
 
 from fastapi import Depends, HTTPException, Request, Security, status
 from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from call_analysis.config import get_settings
 from call_analysis.database import get_async_session
-from call_analysis.models import APIKey, User
+from call_analysis.models import APIKey, User, UserRole
 from call_analysis.schemas import TokenData, UserRead
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 settings = get_settings()
 
 # Use argon2 for password hashing (modern, secure, no bcrypt version issues)
 # Fallback to sha256 if argon2 not available
 try:
-    import argon2
+    import argon2  # noqa: F401 — presence check for argon2-cffi
+
     pwd_context = CryptContext(
         schemes=["argon2"],
         deprecated="auto",
@@ -33,26 +36,26 @@ except ImportError:
     # Fallback to sha256 with salt
     import hashlib
     import os
-    
+
     class Sha256Context:
         def hash(self, secret: str) -> str:
             salt = os.urandom(16).hex()
-            hash_obj = hashlib.pbkdf2_hmac('sha256', secret.encode(), salt.encode(), 100000)
-            return "sha256${}${}".format(salt, hash_obj.hex())
-        
+            hash_obj = hashlib.pbkdf2_hmac("sha256", secret.encode(), salt.encode(), 100000)
+            return f"sha256${salt}${hash_obj.hex()}"
+
         def verify(self, secret: str, hash_str: str) -> bool:
             try:
-                parts = hash_str.split('$')
+                parts = hash_str.split("$")
                 if len(parts) != 3:
                     return False
                 algo, salt, expected = parts
-                if algo != 'sha256':
+                if algo != "sha256":
                     return False
-                hash_obj = hashlib.pbkdf2_hmac('sha256', secret.encode(), salt.encode(), 100000)
+                hash_obj = hashlib.pbkdf2_hmac("sha256", secret.encode(), salt.encode(), 100000)
                 return hash_obj.hex() == expected
             except Exception:
                 return False
-    
+
     pwd_context = Sha256Context()
 
 # Security schemes
@@ -73,21 +76,25 @@ def create_access_token(
     expires_delta: timedelta | None = None,
 ) -> str:
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=settings.auth.access_token_expire_minutes))
-    to_encode.update({
-        "exp": expire,
-        "iat": datetime.now(timezone.utc),
-        "type": "access",
-        "aud": settings.auth.jwt_audience,
-        "iss": settings.auth.jwt_issuer,
-    })
+    expire = datetime.now(UTC) + (
+        expires_delta or timedelta(minutes=settings.auth.access_token_expire_minutes)
+    )
+    to_encode.update(
+        {
+            "exp": expire,
+            "iat": datetime.now(UTC),
+            "type": "access",
+            "aud": settings.auth.jwt_audience,
+            "iss": settings.auth.jwt_issuer,
+        }
+    )
     return jwt.encode(to_encode, settings.auth.secret_key, algorithm=settings.auth.algorithm)
 
 
 def create_refresh_token(data: dict) -> str:
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + timedelta(days=settings.auth.refresh_token_expire_days)
-    to_encode.update({"exp": expire, "iat": datetime.now(timezone.utc), "type": "refresh"})
+    expire = datetime.now(UTC) + timedelta(days=settings.auth.refresh_token_expire_days)
+    to_encode.update({"exp": expire, "iat": datetime.now(UTC), "type": "refresh"})
     return jwt.encode(to_encode, settings.auth.secret_key, algorithm=settings.auth.algorithm)
 
 
@@ -119,7 +126,7 @@ def generate_api_key(prefix: str = "ca_", length: int = 32) -> tuple[str, str]:
 
 
 async def get_current_user(
-    credentials: Annotated[Optional[HTTPAuthorizationCredentials], Security(bearer_scheme)],
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Security(bearer_scheme)],
     db: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> UserRead:
     """Validate JWT token and return current user."""
@@ -152,7 +159,7 @@ async def get_current_user(
 
 
 async def get_current_user_optional(
-    credentials: Annotated[Optional[HTTPAuthorizationCredentials], Security(bearer_scheme)],
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Security(bearer_scheme)],
     db: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> UserRead | None:
     """Validate JWT token but don't require authentication."""
@@ -173,7 +180,7 @@ async def get_current_user_optional(
 
 
 async def get_api_key_user(
-    api_key: Annotated[Optional[str], Security(api_key_header)],
+    api_key: Annotated[str | None, Security(api_key_header)],
     db: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> UserRead:
     """Validate API key and return associated user."""
@@ -186,7 +193,7 @@ async def get_api_key_user(
 
     key_hash = hashlib.sha256(api_key.encode()).hexdigest()
     result = await db.execute(
-        select(APIKey).where(APIKey.key_hash == key_hash, APIKey.is_active == True)
+        select(APIKey).where(APIKey.key_hash == key_hash, APIKey.is_active.is_(True))
     )
     api_key_obj = result.scalar_one_or_none()
 
@@ -197,7 +204,7 @@ async def get_api_key_user(
             headers={"WWW-Authenticate": "ApiKey"},
         )
 
-    if api_key_obj.expires_at and api_key_obj.expires_at < datetime.now(timezone.utc):
+    if api_key_obj.expires_at and api_key_obj.expires_at < datetime.now(UTC):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="API key expired",
@@ -205,7 +212,7 @@ async def get_api_key_user(
         )
 
     # Update last used
-    api_key_obj.last_used_at = datetime.now(timezone.utc)
+    api_key_obj.last_used_at = datetime.now(UTC)
     await db.commit()
 
     # Get user
@@ -224,17 +231,19 @@ async def get_api_key_user(
 
 async def get_current_user_or_api_key(
     request: Request,
-    credentials: Annotated[Optional[HTTPAuthorizationCredentials], Security(bearer_scheme)],
-    api_key: Annotated[Optional[str], Security(api_key_header)],
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Security(bearer_scheme)],
+    api_key: Annotated[str | None, Security(api_key_header)],
     db: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> UserRead:
     """Try JWT first, then API key."""
     settings = get_settings()
-    
+
     # Allow unauthenticated access in testing mode
     if settings.is_testing:
-        from call_analysis.schemas import UserRole
         from uuid import uuid4
+
+        from call_analysis.schemas import UserRole
+
         return UserRead(
             id=uuid4(),
             organization_id=uuid4(),
@@ -244,10 +253,10 @@ async def get_current_user_or_api_key(
             is_active=True,
             is_superuser=True,
             last_login=None,
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
         )
-    
+
     # Try JWT
     if credentials:
         token_data = decode_token(credentials.credentials)
@@ -268,26 +277,25 @@ async def get_current_user_or_api_key(
     )
 
 
-def require_role(*allowed_roles: UserRead):
+def require_role(*allowed_roles: UserRole) -> Any:
     """Dependency factory for role-based access control."""
+
     async def role_checker(
         current_user: Annotated[UserRead, Depends(get_current_user_or_api_key)],
     ) -> UserRead:
-        if current_user.role not in [r.value for r in allowed_roles]:
+        if current_user.role not in allowed_roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Required role: {', '.join(r.value for r in allowed_roles)}",
             )
         return current_user
+
     return role_checker
 
 
 # Convenience dependencies
-require_admin = require_role(UserRead.model_construct(role="admin"))
-require_analyst = require_role(
-    UserRead.model_construct(role="admin"),
-    UserRead.model_construct(role="analyst"),
-)
+require_admin = require_role(UserRole.ADMIN)
+require_analyst = require_role(UserRole.ADMIN, UserRole.ANALYST)
 require_viewer = require_role(
     UserRead.model_construct(role="admin"),
     UserRead.model_construct(role="analyst"),

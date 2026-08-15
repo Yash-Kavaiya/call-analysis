@@ -23,7 +23,7 @@ from call_analysis.nim_client import (
 )
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None) -> int:  # noqa: PLR0911 — exit-code protocol
     parser = argparse.ArgumentParser(
         prog="nim-validate",
         description=(
@@ -73,7 +73,7 @@ def main(argv: list[str] | None = None) -> int:
     except NimError as exc:
         print(f"NIM_ERROR: {exc}", file=sys.stderr)
         return 6
-    except Exception as exc:  # noqa: BLE001 — surface unexpected failures clearly
+    except Exception as exc:
         print(f"UNEXPECTED_ERROR: {exc}", file=sys.stderr)
         traceback.print_exc(file=sys.stderr)
         return 1

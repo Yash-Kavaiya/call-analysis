@@ -5,12 +5,14 @@ from __future__ import annotations
 import sys
 from logging.config import fileConfig
 from pathlib import Path
-
-from sqlalchemy import pool
-from sqlalchemy.engine import Connection
-from sqlalchemy.ext.asyncio import async_engine_from_config
+from typing import TYPE_CHECKING
 
 from alembic import context
+from sqlalchemy import pool
+from sqlalchemy.ext.asyncio import async_engine_from_config
+
+if TYPE_CHECKING:
+    from sqlalchemy.engine import Connection
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
@@ -21,8 +23,8 @@ from call_analysis.models import Base
 config = context.config
 settings = get_settings()
 
-# Override sqlalchemy.url from settings
-config.set_main_option("sqlalchemy.url", settings.database.url.render_as_string(hide_password=False))
+# Override sqlalchemy.url from settings (migrations run on the async driver)
+config.set_main_option("sqlalchemy.url", settings.database.async_url)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
@@ -75,6 +77,7 @@ async def run_async_migrations() -> None:
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode."""
     import asyncio
+
     asyncio.run(run_async_migrations())
 
 

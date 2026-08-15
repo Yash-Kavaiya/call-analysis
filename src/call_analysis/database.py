@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
+from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import event, text
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import NullPool
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
 
 from call_analysis.config import get_settings
 from call_analysis.models import Base
@@ -31,7 +33,7 @@ async_engine = create_async_engine(
 )
 
 # Sync engine for Alembic and Celery workers
-sync_engine = create_async_engine(
+sync_engine = create_engine(
     _settings.database.url,
     pool_size=_settings.database.pool_size,
     max_overflow=_settings.database.max_overflow,
@@ -40,7 +42,7 @@ sync_engine = create_async_engine(
     echo=_settings.database.echo,
     echo_pool=_settings.database.echo_pool,
     pool_pre_ping=True,
-).sync_engine
+)
 
 # Session factories
 AsyncSessionLocal = async_sessionmaker(
@@ -53,18 +55,19 @@ SyncSessionLocal = sessionmaker(
 
 
 # Connection event listeners for logging
+# (SQLAlchemy passes opaque connection objects — Any is intentional)
 @event.listens_for(sync_engine, "connect")
-def on_connect(dbapi_conn, connection_record):
+def on_connect(dbapi_conn: Any, connection_record: Any) -> None:
     logger.debug("Database connection established")
 
 
 @event.listens_for(sync_engine, "checkout")
-def on_checkout(dbapi_conn, connection_record, connection_proxy):
+def on_checkout(dbapi_conn: Any, connection_record: Any, connection_proxy: Any) -> None:
     logger.debug("Database connection checked out")
 
 
 @event.listens_for(sync_engine, "checkin")
-def on_checkin(dbapi_conn, connection_record):
+def on_checkin(dbapi_conn: Any, connection_record: Any) -> None:
     logger.debug("Database connection checked in")
 
 
@@ -117,10 +120,10 @@ async def check_db_connection() -> bool:
     try:
         async with async_engine.connect() as conn:
             await conn.execute(text("SELECT 1"))
-        return True
-    except Exception as e:
-        logger.error(f"Database connection check failed: {e}")
+    except Exception:
+        logger.exception("Database connection check failed")
         return False
+    return True
 
 
 async def close_db() -> None:

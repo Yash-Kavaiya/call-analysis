@@ -4,13 +4,16 @@ from __future__ import annotations
 
 import logging
 import sys
-from typing import Any
+from datetime import UTC
+from typing import TYPE_CHECKING, Any
 
 import structlog
 from pythonjsonlogger import jsonlogger
-from structlog.types import EventDict, WrappedLogger
 
 from call_analysis.config import get_settings
+
+if TYPE_CHECKING:
+    from structlog.types import EventDict, WrappedLogger
 
 _settings = get_settings()
 
@@ -23,12 +26,15 @@ def add_severity_level(logger: WrappedLogger, method_name: str, event_dict: Even
 
 def add_timestamp(logger: WrappedLogger, method_name: str, event_dict: EventDict) -> EventDict:
     """Add ISO timestamp to log entry."""
-    from datetime import datetime, timezone
-    event_dict["timestamp"] = datetime.now(timezone.utc).isoformat()
+    from datetime import datetime
+
+    event_dict["timestamp"] = datetime.now(UTC).isoformat()
     return event_dict
 
 
-def redact_sensitive_data(logger: WrappedLogger, method_name: str, event_dict: EventDict) -> EventDict:
+def redact_sensitive_data(
+    logger: WrappedLogger, method_name: str, event_dict: EventDict
+) -> EventDict:
     """Redact sensitive keys from log entries."""
     redact_keys = _settings.logging.redact_keys
     for key in list(event_dict.keys()):
@@ -40,7 +46,10 @@ def redact_sensitive_data(logger: WrappedLogger, method_name: str, event_dict: E
 def add_request_id(logger: WrappedLogger, method_name: str, event_dict: EventDict) -> EventDict:
     """Add request ID from context if available."""
     import contextvars
-    request_id_var: contextvars.ContextVar[str | None] = contextvars.ContextVar("request_id", default=None)
+
+    request_id_var: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+        "request_id", default=None
+    )
     request_id = request_id_var.get()
     if request_id:
         event_dict["request_id"] = request_id
@@ -78,7 +87,8 @@ def setup_logging() -> None:
 
     # Configure structlog
     structlog.configure(
-        processors=shared_processors + [
+        processors=[
+            *shared_processors,
             structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
         ],
         logger_factory=structlog.stdlib.LoggerFactory(),
@@ -102,6 +112,7 @@ def setup_logging() -> None:
     # File handler if configured
     if _settings.logging.file_path:
         from logging.handlers import RotatingFileHandler
+
         file_handler = RotatingFileHandler(
             _settings.logging.file_path,
             maxBytes=_settings.logging.file_max_bytes,
@@ -117,8 +128,11 @@ def get_logger(name: str) -> structlog.stdlib.BoundLogger:
 
 
 # Context variable for request ID
-import contextvars
-request_id_var: contextvars.ContextVar[str | None] = contextvars.ContextVar("request_id", default=None)
+import contextvars  # noqa: E402 — module-level after setup_logging call
+
+request_id_var: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "request_id", default=None
+)
 
 
 def set_request_id(request_id: str) -> None:
@@ -134,16 +148,17 @@ def clear_request_id() -> None:
 class LoggingMiddleware:
     """ASGI middleware for request logging."""
 
-    def __init__(self, app):
+    def __init__(self, app: Any) -> None:
         self.app = app
 
-    async def __call__(self, scope, receive, send):
+    async def __call__(self, scope: dict[str, Any], receive: Any, send: Any) -> None:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
 
         import time
         import uuid
+
         from structlog import get_logger
 
         # ASGI headers are a list of (name, value) tuples
@@ -156,7 +171,7 @@ class LoggingMiddleware:
         logger = get_logger("request")
         start_time = time.time()
 
-        async def send_wrapper(message):
+        async def send_wrapper(message: dict[str, Any]) -> None:
             if message["type"] == "http.response.start":
                 duration = time.time() - start_time
                 logger.info(

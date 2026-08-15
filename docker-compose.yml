@@ -61,6 +61,8 @@ services:
       - LOG_FORMAT=json
       - OTEL_ENABLED=true
       - OTEL_EXPORTER_ENDPOINT=http://otel-collector:4317
+    volumes:
+      - ./data:/app/data
     ports:
       - "8787:8787"
     depends_on:
@@ -103,6 +105,8 @@ services:
       - LOG_FORMAT=json
       - OTEL_ENABLED=true
       - OTEL_EXPORTER_ENDPOINT=http://otel-collector:4317
+    volumes:
+      - ./data:/app/data
     depends_on:
       postgres:
         condition: service_healthy
@@ -111,6 +115,7 @@ services:
     networks:
       - call-analysis-network
     deploy:
+      replicas: 2
       resources:
         limits:
           cpus: "2"
@@ -118,8 +123,6 @@ services:
         reservations:
           cpus: "1"
           memory: 1G
-    deploy:
-      replicas: 2
 
   beat:
     build:

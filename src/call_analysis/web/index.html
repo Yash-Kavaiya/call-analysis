@@ -6,7 +6,13 @@
   <title>Call Analysis — NVIDIA Contact Center Intelligence</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
   <link rel="stylesheet" href="/static/styles.css" />
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="/static/vendor/chart.umd.min.js"></script>
+  <script>
+    // Offline fallback: load Chart.js from CDN only if the bundled copy failed.
+    if (typeof Chart === "undefined") {
+      document.write('<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"><\/script>');
+    }
+  </script>
 </head>
 <body>
   <div class="app">

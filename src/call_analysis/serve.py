@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import webbrowser
 from threading import Timer
 
@@ -31,36 +32,45 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Environment: {settings.environment}")
     print("NVIDIA-themed dashboard · upload or import .m4a recordings")
 
-    if not args.no_browser:
+    if not args.no_browser and os.environ.get("CALL_ANALYSIS_NO_BROWSER") != "1":
         Timer(1.2, lambda: webbrowser.open(url)).start()
 
     # Use gunicorn in production, uvicorn directly in development
     if settings.is_production and args.workers > 1:
         import subprocess
         import sys
+
         cmd = [
-            sys.executable, "-m", "gunicorn",
+            sys.executable,
+            "-m",
+            "gunicorn",
             "call_analysis.api.app:app",
-            "-w", str(args.workers),
-            "-k", "uvicorn.workers.UvicornWorker",
-            "--bind", f"{args.host}:{args.port}",
-            "--timeout", str(settings.server.timeout_keep_alive),
-            "--graceful-timeout", str(settings.server.timeout_graceful_shutdown),
-            "--access-logfile", "-",
-            "--error-logfile", "-",
+            "-w",
+            str(args.workers),
+            "-k",
+            "uvicorn.workers.UvicornWorker",
+            "--bind",
+            f"{args.host}:{args.port}",
+            "--timeout",
+            str(settings.server.timeout_keep_alive),
+            "--graceful-timeout",
+            str(settings.server.timeout_graceful_shutdown),
+            "--access-logfile",
+            "-",
+            "--error-logfile",
+            "-",
         ]
-        return subprocess.run(cmd).returncode
-    else:
-        uvicorn.run(
-            "call_analysis.api.app:app",
-            host=args.host,
-            port=args.port,
-            reload=args.reload,
-            log_level="info" if not settings.debug else "debug",
-            access_log=settings.server.access_log,
-            workers=1 if args.reload else args.workers,
-        )
-        return 0
+        return subprocess.run(cmd, check=False).returncode
+    uvicorn.run(
+        "call_analysis.api.app:app",
+        host=args.host,
+        port=args.port,
+        reload=args.reload,
+        log_level="info" if not settings.debug else "debug",
+        access_log=settings.server.access_log,
+        workers=1 if args.reload else args.workers,
+    )
+    return 0
 
 
 if __name__ == "__main__":

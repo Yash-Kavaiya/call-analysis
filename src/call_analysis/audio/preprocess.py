@@ -16,9 +16,7 @@ class AudioProcessError(RuntimeError):
 def _which_ffmpeg() -> str:
     path = shutil.which("ffmpeg")
     if not path:
-        raise AudioProcessError(
-            "ffmpeg not found on PATH. Install ffmpeg and restart the shell."
-        )
+        raise AudioProcessError("ffmpeg not found on PATH. Install ffmpeg and restart the shell.")
     return path
 
 

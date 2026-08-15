@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
+
 from celery import Celery, Task
+from celery.schedules import crontab
 from celery.signals import task_failure, task_retry, task_success, worker_ready, worker_shutdown
 from kombu import Queue
 
@@ -60,6 +63,7 @@ celery_app.conf.update(
     task_send_sent_event=True,
 )
 
+
 # Custom task base class with error handling
 class BaseTask(Task):
     """Base task class with common functionality."""
@@ -69,15 +73,35 @@ class BaseTask(Task):
     retry_backoff_max = 600
     retry_jitter = True
 
-    def on_failure(self, exc, task_id, args, kwargs, einfo):
+    def on_failure(
+        self,
+        exc: BaseException,
+        task_id: str,
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+        einfo: Any,
+    ) -> None:
         logger.error(f"Task {task_id} failed: {exc}", exc_info=einfo)
         super().on_failure(exc, task_id, args, kwargs, einfo)
 
-    def on_retry(self, exc, task_id, args, kwargs, einfo):
+    def on_retry(
+        self,
+        exc: BaseException,
+        task_id: str,
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+        einfo: Any,
+    ) -> None:
         logger.warning(f"Task {task_id} retry: {exc}")
         super().on_retry(exc, task_id, args, kwargs, einfo)
 
-    def on_success(self, retval, task_id, args, kwargs):
+    def on_success(
+        self,
+        retval: Any,
+        task_id: str,
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+    ) -> None:
         logger.info(f"Task {task_id} succeeded")
         super().on_success(retval, task_id, args, kwargs)
 
@@ -87,27 +111,31 @@ celery_app.Task = BaseTask
 
 # Signal handlers
 @worker_ready.connect
-def on_worker_ready(sender=None, **kwargs):
+def on_worker_ready(sender: Any = None, **kwargs: Any) -> None:
     logger.info(f"Worker {sender.hostname} ready")
 
 
 @worker_shutdown.connect
-def on_worker_shutdown(sender=None, **kwargs):
+def on_worker_shutdown(sender: Any = None, **kwargs: Any) -> None:
     logger.info(f"Worker {sender.hostname} shutting down")
 
 
 @task_success.connect
-def on_task_success(sender=None, result=None, **kwargs):
+def on_task_success(sender: Any = None, result: Any = None, **kwargs: Any) -> None:
     logger.debug(f"Task {sender.name} succeeded")
 
 
 @task_failure.connect
-def on_task_failure(sender=None, exception=None, **kwargs):
+def on_task_failure(
+    sender: Any = None,
+    exception: BaseException | None = None,
+    **kwargs: Any,
+) -> None:
     logger.error(f"Task {sender.name} failed: {exception}")
 
 
 @task_retry.connect
-def on_task_retry(sender=None, reason=None, **kwargs):
+def on_task_retry(sender: Any = None, reason: str | None = None, **kwargs: Any) -> None:
     logger.warning(f"Task {sender.name} retry: {reason}")
 
 
@@ -139,14 +167,12 @@ async def check_celery_health() -> dict[str, Any]:
             "active_tasks": sum(len(tasks) for tasks in (active or {}).values()),
             "registered_tasks": list(set().union(*(registered or {}).values())),
         }
-    except Exception as e:
-        logger.error(f"Celery health check failed: {e}")
-        return {"healthy": False, "error": str(e)}
+    except Exception:
+        logger.exception("Celery health check failed")
+        return {"healthy": False, "error": "see logs"}
 
 
 # Periodic tasks (Celery Beat)
-from celery.schedules import crontab
-
 celery_app.conf.beat_schedule = {
     "cleanup-old-jobs": {
         "task": "call_analysis.tasks.cleanup_old_jobs",

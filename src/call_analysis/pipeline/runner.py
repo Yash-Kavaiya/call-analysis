@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 from call_analysis.agents.orchestrator import run_all_agents
 from call_analysis.audio.asr import transcribe_audio
@@ -52,7 +52,9 @@ def process_call(
     try:
         source = Path(record.source_path)
         if not source.is_file():
-            raise FileNotFoundError(f"Source audio missing: {source}")
+            raise FileNotFoundError(  # noqa: TRY301 — validation flows to except handler
+                f"Source audio missing: {source}"
+            ) from None
 
         work = store.audio_work_dir(call_id)
         wav_path = work / "audio.wav"
@@ -116,7 +118,7 @@ def process_call(
         record.error = None
         return store.save(record)
 
-    except Exception as exc:  # noqa: BLE001 — persist failure on record
+    except Exception as exc:
         record.status = JobStatus.FAILED.value
         record.error = str(exc)
         record.progress_message = f"Failed: {exc}"

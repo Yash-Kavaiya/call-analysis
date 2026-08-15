@@ -3,16 +3,20 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any
 
 from call_analysis.agents.base import (
     heuristic_sentiment_timeline,
     run_structured_agent,
     transcript_block,
 )
-from call_analysis.config import NvidiaConfig
 from call_analysis.models import AgentResult, TranscriptSegment
 from call_analysis.nim_client import chat_completion
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from call_analysis.config import NvidiaConfig
 
 
 def run_all_agents(
@@ -134,7 +138,7 @@ def run_all_agents(
             name = futures[fut]
             try:
                 agents[name] = fut.result()
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 agents[name] = AgentResult(
                     name=name,
                     summary=f"Agent failed: {exc}",
@@ -157,7 +161,7 @@ def run_all_agents(
         )
 
     # Stable key order for consumers
-    ordered = {
+    return {
         k: agents[k]
         for k in (
             "qa_scorecard",
@@ -169,7 +173,6 @@ def run_all_agents(
         )
         if k in agents
     }
-    return ordered
 
 
 def answer_copilot(

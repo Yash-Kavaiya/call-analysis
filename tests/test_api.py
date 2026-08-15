@@ -61,10 +61,39 @@ def test_health_and_list(tmp_path: Path):
     body = r.json()
     assert body["status"] == "ok"
     assert "nvidia_key_configured" in body
+    # The API must never leak key material (was api_key_hint in earlier builds)
+    assert "api_key_hint" not in body
+    assert "api_key" not in str(body).lower()
 
     r2 = client.get("/api/calls")
     assert r2.status_code == 200
     assert r2.json()["calls"] == []
+
+
+def test_health_does_not_leak_api_key_hint(tmp_path: Path, monkeypatch):
+    """Even with a real key configured, /api/health must not expose it."""
+    monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-super-secret-test-key-1234567890")
+    store = CallStore(data_dir=tmp_path)
+    app = create_app(store=store)
+    client = TestClient(app)
+    body = client.get("/api/health").json()
+    assert body["nvidia_key_configured"] is True
+    assert "api_key_hint" not in body
+    assert "super-secret" not in str(body)
+
+
+def test_recovery_lock_is_released_between_calls(tmp_path: Path):
+    """The recovery lock file must be released after each pass so the next
+    worker (or the next test run) can acquire it without deadlocking."""
+    store = CallStore(data_dir=tmp_path)
+    _stuck_record(store, JobStatus.PENDING.value, "pending1")
+    enqueued: list[str] = []
+    _, count = recover_interrupted_jobs(store, enqueued.append)
+    assert count == 1
+    # A second pass acquires the lock again fine (it was released), and still
+    # re-queues the untouched pending record (recovery semantics).
+    _, count2 = recover_interrupted_jobs(store, enqueued.append)
+    assert count2 == 1
 
 
 def test_upload_registers_call(tmp_path: Path):

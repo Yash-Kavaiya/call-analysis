@@ -14,8 +14,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Set working directory
 WORKDIR /app
 
-# Install Python dependencies
+# Install Python dependencies (source must be present for editable install)
 COPY pyproject.toml requirements.txt ./
+COPY src/ ./src/
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
     && pip install --no-cache-dir -r requirements.txt \
     && pip install --no-cache-dir -e ".[prod]"
@@ -40,6 +41,7 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 # Copy application code
 COPY src/ ./src/
 COPY pyproject.toml ./
+COPY alembic.ini ./
 
 # Install in development mode for entry points
 RUN pip install --no-cache-dir -e .

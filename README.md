@@ -182,7 +182,69 @@ python -m pytest tests/ --cov=call_analysis --cov-report=html
 python -m pytest tests/ -m integration -v
 ```
 
-## ������ Building Windows Installer
+## ������ Windows Desktop App (Python + Electron)
+
+Ship the full dashboard as a native Windows app: an **Electron shell** that spawns
+the **Python backend** as a child process, waits for `/api/health`, then loads the
+NVIDIA-themed dashboard in a desktop window.
+
+```
+┌───────────────────────────────────────────────┐
+│  Electron shell (main.js)                     │
+│  ├─ spawns Python backend (uvicorn on 127.0.0.1)
+│  ├─ polls /api/health until ready             │
+│  └─ loads dashboard in BrowserWindow          │
+└───────────────────────────────────────────────┘
+```
+
+### Run in development
+
+```powershell
+# Terminal 1: Electron app (spawns the backend automatically)
+cd electron
+npm install
+npm start
+```
+
+Requires `python` on `PATH` (or set `CALL_ANALYSIS_PYTHON`). The app finds a
+free port, starts the server, and stores data under the OS user-data folder
+(`%APPDATA%\Call Analysis\data`).
+
+### Build the installer (NSIS)
+
+```powershell
+# Full pipeline: icon → PyInstaller backend → electron-builder NSIS
+python build_electron.py
+
+# Unpacked dir only (faster iteration)
+python build_electron.py --dir
+
+# Reuse an existing backend build / node_modules
+python build_electron.py --skip-backend --skip-npm
+```
+
+Output:
+- Backend bundle: `dist/backend/CallAnalysisBackend/`
+- App + installer: `dist/desktop/CallAnalysis-Setup-<version>.exe`
+
+### Configuration in the desktop app
+
+- **NVIDIA API key**: set `NVIDIA_API_KEY` in your environment, or drop a `.env`
+  file next to the packaged backend (`%APPDATA%\Call Analysis\backend-cwd\.env`).
+  Get a free key at https://build.nvidia.com
+- **Data location**: `%APPDATA%\Call Analysis\data` (uploads, calls, audio).
+- **First launch** may take a minute while the Whisper model downloads and
+  ffmpeg warms up — the splash screen streams backend logs so you can watch.
+
+### Why Electron + Python?
+
+| Layer | Role |
+|-------|------|
+| **Electron** | Native window, taskbar/tray integration, offline-friendly shell |
+| **Python (uvicorn)** | ASR (Whisper), diarization, PII scrub, NVIDIA NIM agents, file store |
+| **Dashboard** | Waveform viewer, sentiment charts, agent scorecards, interactive transcript, RAG copilot |
+
+## ������ Building Windows Installer (standalone EXE, no Electron)
 
 ```powershell
 # Install build dependencies
@@ -233,7 +295,10 @@ call-analysis-project/
 ├── pyproject.toml        # Modern Python packaging
 ├── requirements.txt      # Production dependencies
 ├── build_windows.py      # PyInstaller build script
+├── build_electron.py     # Desktop app build (backend + Electron NSIS)
 ├── installer.nsi         # NSIS installer script
+├── electron/             # Electron desktop shell (main, preload, renderer)
+├── tools/                # Icon generator
 ├── start.ps1 / start.bat # Windows launchers
 ��── .env.example          # Configuration template
 ```

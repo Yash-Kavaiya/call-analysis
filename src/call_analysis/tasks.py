@@ -3,19 +3,18 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
 from celery import shared_task
 from sqlalchemy import delete, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from call_analysis.celery_app import celery_app
-from call_analysis.database import sync_session_context
-from call_analysis.models import CallEvent, CallRecord, SystemMetric, Webhook, WebhookDelivery
-from call_analysis.redis_client import JobStatusTracker, get_redis
 from call_analysis.config import get_settings
+from call_analysis.database import sync_session_context
+from call_analysis.models import CallEvent, CallRecordModel, SystemMetric, Webhook, WebhookDelivery
+from call_analysis.redis_client import JobStatusTracker, get_redis
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -24,11 +23,39 @@ settings = get_settings()
 _job_tracker = JobStatusTracker()
 
 
+class WebhookDeliveryError(Exception):
+    """Raised when a webhook delivery fails and should be retried."""
+
+
+def _track_job_status(
+    job_id: str,
+    status: str,
+    progress: float = 0.0,
+    message: str = "",
+    result: Any | None = None,
+    error: str | None = None,
+) -> None:
+    """Synchronous wrapper around the async Redis job tracker.
+
+    Celery workers run synchronously; the tracker is async because the shared
+    redis client is ``redis.asyncio``. Drive it to completion with
+    ``asyncio.run`` and never let a Redis outage fail the pipeline.
+    """
+    import asyncio
+
+    try:
+        asyncio.run(
+            _job_tracker.set_status(job_id, status, progress, message, result=result, error=error)
+        )
+    except Exception:
+        logger.warning("Redis job status update failed (continuing)", exc_info=True)
+
+
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)
-def process_call(self, call_id: str, organization_id: str | None = None) -> dict[str, Any]:
+def process_call(self: Any, call_id: str, organization_id: str | None = None) -> dict[str, Any]:
     """
     Process a call recording through the full pipeline.
-    
+
     This is the main analysis task that runs in the background.
     """
     from call_analysis.pipeline.runner import process_call as run_pipeline
@@ -38,25 +65,27 @@ def process_call(self, call_id: str, organization_id: str | None = None) -> dict
     org_uuid = UUID(organization_id) if organization_id else None
 
     # Update job status
-    _job_tracker.set_status(call_id, "processing", 0.0, "Starting analysis")
+    _track_job_status(call_id, "processing", 0.0, "Starting analysis")
 
     try:
         # Use sync session for Celery worker
         with sync_session_context() as db:
             # Get call record
-            stmt = select(CallRecord).where(CallRecord.id == call_uuid)
+            stmt = select(CallRecordModel).where(CallRecordModel.id == call_uuid)
             if org_uuid:
-                stmt = stmt.where(CallRecord.organization_id == org_uuid)
+                stmt = stmt.where(CallRecordModel.organization_id == org_uuid)
             call = db.execute(stmt).scalar_one_or_none()
 
             if not call:
-                raise ValueError(f"Call {call_id} not found")
+                raise ValueError(  # noqa: TRY301 — routed through Celery retry handler
+                    f"Call {call_id} not found"
+                )
 
             # Create store with database-backed paths
             store = CallStore()
-            
+
             def progress_callback(msg: str, pct: float) -> None:
-                _job_tracker.set_status(call_id, "processing", pct, msg)
+                _track_job_status(call_id, "processing", pct, msg)
                 # Also update database
                 call.progress_pct = pct
                 call.progress_message = msg
@@ -82,13 +111,15 @@ def process_call(self, call_id: str, organization_id: str | None = None) -> dict
             call.pii_findings = [p.to_dict() for p in result.pii_findings]
             call.agents = {k: v.to_dict() for k, v in result.agents.items()}
             call.waveform_peaks = result.waveform_peaks
-            call.metadata = result.metadata
-            call.completed_at = datetime.now(timezone.utc) if result.status == "completed" else None
+            call.call_metadata = result.metadata
+            call.completed_at = datetime.now(UTC) if result.status == "completed" else None
 
             # Add event
             event = CallEvent(
                 call_id=call.id,
-                event_type="analysis_completed" if result.status == "completed" else "analysis_failed",
+                event_type="analysis_completed"
+                if result.status == "completed"
+                else "analysis_failed",
                 message=f"Analysis {result.status}",
                 details={"status": result.status, "error": result.error},
                 level="INFO" if result.status == "completed" else "ERROR",
@@ -96,22 +127,20 @@ def process_call(self, call_id: str, organization_id: str | None = None) -> dict
             db.add(event)
             db.commit()
 
-        _job_tracker.set_status(
+        _track_job_status(
             call_id,
             result.status,
             1.0 if result.status == "completed" else result.progress_pct,
             result.progress_message or result.error or "Complete",
         )
 
-        return {"status": result.status, "call_id": call_id}
-
     except Exception as exc:
         logger.exception(f"Call processing failed for {call_id}")
-        _job_tracker.set_status(call_id, "failed", 0.0, str(exc))
+        _track_job_status(call_id, "failed", 0.0, str(exc))
 
         # Update database
         with sync_session_context() as db:
-            stmt = select(CallRecord).where(CallRecord.id == call_uuid)
+            stmt = select(CallRecordModel).where(CallRecordModel.id == call_uuid)
             call = db.execute(stmt).scalar_one_or_none()
             if call:
                 call.status = "failed"
@@ -129,15 +158,17 @@ def process_call(self, call_id: str, organization_id: str | None = None) -> dict
 
         # Retry logic
         if self.request.retries < self.max_retries:
-            raise self.retry(exc=exc)
+            raise self.retry(exc=exc) from exc
 
         return {"status": "failed", "call_id": call_id, "error": str(exc)}
 
+    else:
+        return {"status": result.status, "call_id": call_id}
+
 
 @shared_task(bind=True, max_retries=2)
-def analyze_batch(self, call_ids: list[str], organization_id: str) -> dict[str, Any]:
+def analyze_batch(self: Any, call_ids: list[str], organization_id: str) -> dict[str, Any]:
     """Process multiple calls in batch."""
-    org_uuid = UUID(organization_id)
     results = []
 
     for call_id in call_ids:
@@ -152,7 +183,7 @@ def analyze_batch(self, call_ids: list[str], organization_id: str) -> dict[str, 
 
 
 @shared_task(bind=True, max_retries=5, default_retry_delay=30)
-def webhook_delivery(self, delivery_id: str) -> dict[str, Any]:
+def webhook_delivery(self: Any, delivery_id: str) -> dict[str, Any]:
     """Deliver webhook with retry logic."""
     import httpx
 
@@ -192,11 +223,16 @@ def webhook_delivery(self, delivery_id: str) -> dict[str, Any]:
             if 200 <= response.status_code < 300:
                 delivery.error = None
                 db.commit()
-                return {"status": "delivered", "delivery_id": delivery_id, "status_code": response.status_code}
-            else:
-                delivery.error = f"HTTP {response.status_code}: {response.text[:200]}"
-                db.commit()
-                raise Exception(f"Webhook returned {response.status_code}")
+                return {
+                    "status": "delivered",
+                    "delivery_id": delivery_id,
+                    "status_code": response.status_code,
+                }
+            delivery.error = f"HTTP {response.status_code}: {response.text[:200]}"
+            db.commit()
+            raise WebhookDeliveryError(  # noqa: TRY301 — deliberate raise to retry
+                f"Webhook returned {response.status_code}"
+            )
 
         except Exception as exc:
             delivery.error = str(exc)
@@ -204,15 +240,16 @@ def webhook_delivery(self, delivery_id: str) -> dict[str, Any]:
             db.commit()
 
             if self.request.retries < self.max_retries:
-                raise self.retry(exc=exc)
+                raise self.retry(exc=exc) from exc
 
             return {"status": "failed", "delivery_id": delivery_id, "error": str(exc)}
 
 
 def _sign_payload(payload: dict, secret: str) -> str:
-    import hmac
     import hashlib
+    import hmac
     import json
+
     body = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode()
     return hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
 
@@ -220,16 +257,15 @@ def _sign_payload(payload: dict, secret: str) -> str:
 @shared_task
 def cleanup_old_jobs(days: int = 30) -> dict[str, Any]:
     """Clean up completed/failed jobs older than specified days."""
-    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    cutoff = datetime.now(UTC) - timedelta(days=days)
 
-    with sync_session_context() as db:
+    with sync_session_context():
         # Clean up old call records (keep for compliance, just archive status)
         # In production, you might move to cold storage instead
         deleted_calls = 0  # Placeholder for actual cleanup logic
 
-        # Clean up Redis job statuses
-        redis = get_redis()
-        # This would need a scan - simplified for now
+        # Clean up Redis job statuses (scan-based purge is a future task)
+        get_redis()
 
     return {"deleted_calls": deleted_calls, "cutoff": cutoff.isoformat()}
 
@@ -237,12 +273,10 @@ def cleanup_old_jobs(days: int = 30) -> dict[str, Any]:
 @shared_task
 def cleanup_old_events(days: int = 90) -> dict[str, Any]:
     """Clean up old call events."""
-    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    cutoff = datetime.now(UTC) - timedelta(days=days)
 
     with sync_session_context() as db:
-        result = db.execute(
-            delete(CallEvent).where(CallEvent.created_at < cutoff)
-        )
+        result = db.execute(delete(CallEvent).where(CallEvent.created_at < cutoff))
         db.commit()
         deleted = result.rowcount
 
@@ -252,52 +286,64 @@ def cleanup_old_events(days: int = 90) -> dict[str, Any]:
 @shared_task
 def collect_system_metrics() -> dict[str, Any]:
     """Collect system metrics for monitoring."""
+
     import psutil
-    import time
 
     metrics = []
 
     # CPU
     cpu_percent = psutil.cpu_percent(interval=0.1)
-    metrics.append(SystemMetric(
-        metric_name="system.cpu.percent",
-        metric_value=cpu_percent,
-        labels={"host": "localhost"},
-    ))
+    metrics.append(
+        SystemMetric(
+            metric_name="system.cpu.percent",
+            metric_value=cpu_percent,
+            labels={"host": "localhost"},
+        )
+    )
 
     # Memory
     mem = psutil.virtual_memory()
-    metrics.append(SystemMetric(
-        metric_name="system.memory.percent",
-        metric_value=mem.percent,
-        labels={"host": "localhost"},
-    ))
-    metrics.append(SystemMetric(
-        metric_name="system.memory.available_bytes",
-        metric_value=mem.available,
-        labels={"host": "localhost"},
-    ))
+    metrics.append(
+        SystemMetric(
+            metric_name="system.memory.percent",
+            metric_value=mem.percent,
+            labels={"host": "localhost"},
+        )
+    )
+    metrics.append(
+        SystemMetric(
+            metric_name="system.memory.available_bytes",
+            metric_value=mem.available,
+            labels={"host": "localhost"},
+        )
+    )
 
     # Disk
     disk = psutil.disk_usage("/")
-    metrics.append(SystemMetric(
-        metric_name="system.disk.percent",
-        metric_value=(disk.used / disk.total) * 100,
-        labels={"host": "localhost", "mount": "/"},
-    ))
+    metrics.append(
+        SystemMetric(
+            metric_name="system.disk.percent",
+            metric_value=(disk.used / disk.total) * 100,
+            labels={"host": "localhost", "mount": "/"},
+        )
+    )
 
     # Network
     net = psutil.net_io_counters()
-    metrics.append(SystemMetric(
-        metric_name="system.network.bytes_sent",
-        metric_value=net.bytes_sent,
-        labels={"host": "localhost"},
-    ))
-    metrics.append(SystemMetric(
-        metric_name="system.network.bytes_recv",
-        metric_value=net.bytes_recv,
-        labels={"host": "localhost"},
-    ))
+    metrics.append(
+        SystemMetric(
+            metric_name="system.network.bytes_sent",
+            metric_value=net.bytes_sent,
+            labels={"host": "localhost"},
+        )
+    )
+    metrics.append(
+        SystemMetric(
+            metric_name="system.network.bytes_recv",
+            metric_value=net.bytes_recv,
+            labels={"host": "localhost"},
+        )
+    )
 
     # Celery queue depths (if available)
     try:
@@ -305,17 +351,21 @@ def collect_system_metrics() -> dict[str, Any]:
         active = inspect.active() or {}
         reserved = inspect.reserved() or {}
         for worker, tasks in active.items():
-            metrics.append(SystemMetric(
-                metric_name="celery.worker.active_tasks",
-                metric_value=len(tasks),
-                labels={"worker": worker},
-            ))
+            metrics.append(
+                SystemMetric(
+                    metric_name="celery.worker.active_tasks",
+                    metric_value=len(tasks),
+                    labels={"worker": worker},
+                )
+            )
         for worker, tasks in reserved.items():
-            metrics.append(SystemMetric(
-                metric_name="celery.worker.reserved_tasks",
-                metric_value=len(tasks),
-                labels={"worker": worker},
-            ))
+            metrics.append(
+                SystemMetric(
+                    metric_name="celery.worker.reserved_tasks",
+                    metric_value=len(tasks),
+                    labels={"worker": worker},
+                )
+            )
     except Exception:
         pass
 
@@ -323,4 +373,4 @@ def collect_system_metrics() -> dict[str, Any]:
         db.add_all(metrics)
         db.commit()
 
-    return {"metrics_collected": len(metrics), "timestamp": datetime.now(timezone.utc).isoformat()}
+    return {"metrics_collected": len(metrics), "timestamp": datetime.now(UTC).isoformat()}

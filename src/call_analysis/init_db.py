@@ -7,9 +7,8 @@ import logging
 import sys
 
 from call_analysis.config import get_settings
-from call_analysis.database import init_db, check_db_connection
+from call_analysis.database import check_db_connection, init_db
 from call_analysis.logging_config import setup_logging
-from call_analysis.models import Base
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -26,16 +25,17 @@ async def main() -> int:
         if not connected:
             logger.error("Cannot connect to database. Check DB_* environment variables.")
             return 1
-
+    except Exception as e:
+        logger.exception("Database initialization failed", error=str(e))
+        return 1
+    else:
         # Create tables
         await init_db()
         logger.info("Database initialized successfully")
         return 0
-    except Exception as e:
-        logger.exception("Database initialization failed", error=str(e))
-        return 1
     finally:
         from call_analysis.database import close_db
+
         await close_db()
 
 

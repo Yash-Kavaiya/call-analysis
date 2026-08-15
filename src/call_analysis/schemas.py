@@ -3,26 +3,26 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
-from enum import Enum
+from datetime import UTC, datetime
+from enum import StrEnum
 from typing import Any
-from uuid import UUID
+from uuid import UUID  # noqa: TC003 — Pydantic resolves fields at runtime
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
 def utc_now_iso() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    return datetime.now(UTC).replace(microsecond=0).isoformat()
 
 
-class JobStatus(str, Enum):
+class JobStatus(StrEnum):
     PENDING = "pending"
     PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
 
 
-class UserRole(str, Enum):
+class UserRole(StrEnum):
     ADMIN = "admin"
     ANALYST = "analyst"
     VIEWER = "viewer"
@@ -139,8 +139,7 @@ class CallRecord:
     def from_dict(cls, data: dict[str, Any]) -> CallRecord:
         agents_raw = data.get("agents") or {}
         agents = {
-            k: AgentResult.from_dict(v) if isinstance(v, dict) else v
-            for k, v in agents_raw.items()
+            k: AgentResult.from_dict(v) if isinstance(v, dict) else v for k, v in agents_raw.items()
         }
         return cls(
             id=str(data["id"]),
@@ -156,12 +155,8 @@ class CallRecord:
             progress_message=str(data.get("progress_message") or ""),
             full_transcript=str(data.get("full_transcript") or ""),
             scrubbed_transcript=str(data.get("scrubbed_transcript") or ""),
-            segments=[
-                TranscriptSegment.from_dict(s) for s in (data.get("segments") or [])
-            ],
-            pii_findings=[
-                PiiFinding.from_dict(p) for p in (data.get("pii_findings") or [])
-            ],
+            segments=[TranscriptSegment.from_dict(s) for s in (data.get("segments") or [])],
+            pii_findings=[PiiFinding.from_dict(p) for p in (data.get("pii_findings") or [])],
             agents=agents,
             waveform_peaks=list(data.get("waveform_peaks") or []),
             metadata=dict(data.get("metadata") or {}),
@@ -346,7 +341,6 @@ class HealthResponse(BaseModel):
     nvidia_key_configured: bool
     model: str | None
     base_url: str | None
-    api_key_hint: str | None
     version: str
     environment: str
     database_connected: bool

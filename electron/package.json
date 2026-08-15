@@ -1,0 +1,63 @@
+{
+  "name": "call-analysis-desktop",
+  "productName": "Call Analysis",
+  "version": "0.4.0",
+  "description": "NVIDIA-powered contact center intelligence — Windows desktop app (Python backend + Electron shell)",
+  "main": "main.js",
+  "author": "Call Analysis Team",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "pack": "electron-builder --win dir",
+    "dist": "electron-builder --win nsis",
+    "check": "node --check main.js && node --check preload.js"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.callanalysis.desktop",
+    "productName": "Call Analysis",
+    "copyright": "Copyright © 2026 Call Analysis Team",
+    "directories": {
+      "output": "../dist/desktop",
+      "buildResources": "assets"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../dist/backend/CallAnalysisBackend",
+        "to": "backend"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico",
+      "artifactName": "CallAnalysis-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Call Analysis",
+      "uninstallDisplayName": "Call Analysis",
+      "deleteAppDataOnUninstall": false
+    }
+  }
+}

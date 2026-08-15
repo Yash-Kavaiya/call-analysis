@@ -2,28 +2,21 @@
 
 from __future__ import annotations
 
-import os
-from pathlib import Path
-
 import pytest
 
 from call_analysis.config import (
-    Settings,
-    DatabaseSettings,
-    RedisSettings,
-    CelerySettings,
-    NVidiaSettings,
     AuthSettings,
-    RateLimitSettings,
-    CorsSettings,
-    LoggingSettings,
-    TelemetrySettings,
+    CelerySettings,
+    DatabaseSettings,
     FeatureFlags,
-    get_settings,
-    reload_settings,
-    NvidiaConfig,
     MissingAPIKeyError,
+    NvidiaConfig,
+    NVidiaSettings,
+    RedisSettings,
+    Settings,
+    get_settings,
     load_nvidia_config,
+    reload_settings,
 )
 
 
@@ -70,6 +63,37 @@ def test_auth_settings_validation():
     # Too short
     with pytest.raises(ValueError, match="at least 32 characters"):
         AuthSettings(secret_key="short")
+
+
+def test_auth_empty_secret_key_auto_generates(monkeypatch):
+    """docker-compose injects AUTH_SECRET_KEY= when the host var is unset;
+    a blank value must not crash Settings() at startup."""
+    monkeypatch.setenv("AUTH_SECRET_KEY", "")
+    reload_settings()
+    s = get_settings()
+    assert len(s.auth.secret_key) >= 32
+
+    # Blank again — still deterministic-safe (generated each time, never blank)
+    assert AuthSettings(secret_key="").secret_key
+    assert AuthSettings(secret_key="   ").secret_key
+
+
+def test_storage_allowed_extensions_comma_separated(monkeypatch):
+    """.env.example documents STORAGE_ALLOWED_EXTENSIONS=.m4a,.wav,.mp3 —
+    a comma-separated string must parse into a set, not crash startup."""
+    from call_analysis.config import StorageSettings
+
+    s = StorageSettings(allowed_extensions=".m4a,.wav,.mp3")
+    assert s.allowed_extensions == {".m4a", ".wav", ".mp3"}
+
+    # Missing dot is normalized
+    s2 = StorageSettings(allowed_extensions="m4a, wav")
+    assert s2.allowed_extensions == {".m4a", ".wav"}
+
+    # Env path too
+    monkeypatch.setenv("STORAGE_ALLOWED_EXTENSIONS", ".m4a,.ogg")
+    reload_settings()
+    assert get_settings().storage.allowed_extensions == {".m4a", ".ogg"}
 
 
 def test_feature_flags():
@@ -127,7 +151,7 @@ def test_settings_caching():
 
 def test_reload_settings_clears_cache():
     """Verify reload_settings clears cache."""
-    s1 = get_settings()
+    get_settings()
     reload_settings()
     s2 = get_settings()
     # May or may not be same instance depending on implementation
@@ -144,29 +168,37 @@ def test_database_url_construction():
         password="testpass",
         name="testdb",
     )
-    assert "postgresql+psycopg://testuser:testpass@db.example.com:5433/testdb" == s.url
-    assert "postgresql+asyncpg://testuser:testpass@db.example.com:5433/testdb" == s.async_url
+    assert s.url == "postgresql+psycopg://testuser:testpass@db.example.com:5433/testdb"
+    assert s.async_url == "postgresql+asyncpg://testuser:testpass@db.example.com:5433/testdb"
 
 
 def test_redis_url_construction():
     """Test Redis URL construction."""
     s = RedisSettings(host="redis.example.com", port=6380, password="secret", db=1)
-    assert "redis://default:secret@redis.example.com:6380/1" == s.url
+    assert s.url == "redis://default:secret@redis.example.com:6380/1"
 
     s_no_pass = RedisSettings(host="redis.example.com", port=6380, db=1)
-    assert "redis://redis.example.com:6380/1" == s_no_pass.url
+    assert s_no_pass.url == "redis://redis.example.com:6380/1"
 
 
 def test_nvidia_config_redacted_summary():
     """Test that redacted summary doesn't leak full key."""
     cfg = NvidiaConfig(
-        type("Settings", (), {
-            "nvidia": type("Nvidia", (), {
-                "api_key": "nvapi-super-secret-value-abcdef",
-                "base_url": "https://test.com",
-                "model": "test-model"
-            })()
-        })()
+        type(
+            "Settings",
+            (),
+            {
+                "nvidia": type(
+                    "Nvidia",
+                    (),
+                    {
+                        "api_key": "nvapi-super-secret-value-abcdef",
+                        "base_url": "https://test.com",
+                        "model": "test-model",
+                    },
+                )()
+            },
+        )()
     )
     summary = cfg.redacted_summary()
     assert "super-secret-value" not in summary

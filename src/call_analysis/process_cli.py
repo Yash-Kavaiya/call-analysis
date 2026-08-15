@@ -57,7 +57,7 @@ def main(argv: list[str] | None = None) -> int:
             skip_agents=args.skip_agents,
             on_progress=on_progress,
         )
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         print(f"FAILED: {exc}", file=sys.stderr)
         return 1
 
@@ -66,7 +66,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"segments={len(result.segments)} pii={len(result.pii_findings)}")
     for name, agent in result.agents.items():
         print(f"  {name}: score={agent.score} | {agent.summary[:100]}")
-    print(f"Open dashboard: python -m call_analysis.serve")
+    print("Open dashboard: python -m call_analysis.serve")
     return 0
 
 

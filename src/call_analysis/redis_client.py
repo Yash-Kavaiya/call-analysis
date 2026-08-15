@@ -4,19 +4,23 @@ from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
-from typing import Any, AsyncGenerator, Optional
+from typing import TYPE_CHECKING, Any
 
 import redis.asyncio as redis
-from redis.asyncio import Redis
 from redis.asyncio.connection import ConnectionPool
 
 from call_analysis.config import get_settings
 
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+
+    from redis.asyncio import Redis
+
 logger = logging.getLogger(__name__)
 
 _settings = get_settings()
-_pool: Optional[ConnectionPool] = None
-_client: Optional[Redis] = None
+_pool: ConnectionPool | None = None
+_client: Redis | None = None
 
 
 def get_redis_pool() -> ConnectionPool:
@@ -70,10 +74,10 @@ async def check_redis_connection() -> bool:
     try:
         client = get_redis()
         await client.ping()
-        return True
-    except Exception as e:
-        logger.error(f"Redis connection check failed: {e}")
+    except Exception:
+        logger.exception("Redis connection check failed")
         return False
+    return True
 
 
 # Key prefixes
@@ -113,7 +117,13 @@ class RedisKeys:
 class RedisLock:
     """Distributed lock using Redis."""
 
-    def __init__(self, resource: str, ttl: int = 30, blocking: bool = True, blocking_timeout: int = 10):
+    def __init__(
+        self,
+        resource: str,
+        ttl: int = 30,
+        blocking: bool = True,
+        blocking_timeout: int = 10,
+    ) -> None:
         self.resource = resource
         self.ttl = ttl
         self.blocking = blocking
@@ -130,7 +140,12 @@ class RedisLock:
         )
         return await self.lock.acquire()
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: Any | None,
+    ) -> None:
         if self.lock:
             await self.lock.release()
 
@@ -139,7 +154,7 @@ class RedisLock:
 class RateLimiter:
     """Token bucket rate limiter using Redis."""
 
-    def __init__(self, client: Redis | None = None):
+    def __init__(self, client: Redis | None = None) -> None:
         self.client = client or get_redis()
 
     async def check_limit(
@@ -191,7 +206,7 @@ class RateLimiter:
 class RedisCache:
     """Simple async cache with TTL."""
 
-    def __init__(self, client: Redis | None = None, default_ttl: int = 300):
+    def __init__(self, client: Redis | None = None, default_ttl: int = 300) -> None:
         self.client = client or get_redis()
         self.default_ttl = default_ttl
 
@@ -199,11 +214,13 @@ class RedisCache:
         data = await self.client.get(RedisKeys.CACHE + key)
         if data:
             import json
+
             return json.loads(data)
         return None
 
     async def set(self, key: str, value: Any, ttl: int | None = None) -> bool:
         import json
+
         return await self.client.set(
             RedisKeys.CACHE + key,
             json.dumps(value),
@@ -221,7 +238,7 @@ class RedisCache:
 class JobStatusTracker:
     """Track background job status in Redis."""
 
-    def __init__(self, client: Redis | None = None, ttl: int = 86400):
+    def __init__(self, client: Redis | None = None, ttl: int = 86400) -> None:
         self.client = client or get_redis()
         self.ttl = ttl
 
@@ -235,13 +252,16 @@ class JobStatusTracker:
         error: str | None = None,
     ) -> None:
         import json
+
         data = {
             "status": status,
             "progress": progress,
             "message": message,
             "result": result,
             "error": error,
-            "updated_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
+            "updated_at": __import__("datetime")
+            .datetime.now(__import__("datetime").timezone.utc)
+            .isoformat(),
         }
         await self.client.set(
             RedisKeys.job_status(job_id),
@@ -251,6 +271,7 @@ class JobStatusTracker:
 
     async def get_status(self, job_id: str) -> dict[str, Any] | None:
         import json
+
         data = await self.client.get(RedisKeys.job_status(job_id))
         if data:
             return json.loads(data)

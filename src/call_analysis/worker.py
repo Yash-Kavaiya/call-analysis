@@ -20,28 +20,30 @@ def main() -> int:
     """Run Celery worker."""
     logger.info("Starting Celery worker", version=settings.app_version)
 
+    # prefork is not available on Windows; fall back to the solo pool there.
+    import sys as _sys
+
+    pool = "prefork" if _sys.platform != "win32" else "solo"
+
     # Worker arguments
     argv = [
         "worker",
         "--loglevel=INFO",
         "--concurrency=4",
-        "--pool=prefork",
+        f"--pool={pool}",
         "--queues=default,analysis,batch,webhooks,maintenance",
         "--hostname=call-analysis@%h",
     ]
 
-    if settings.is_development:
-        argv.extend(["--reload", "--autoreload"])
-
     try:
         celery_app.worker_main(argv)
-        return 0
     except KeyboardInterrupt:
         logger.info("Worker stopped by user")
         return 0
     except Exception as e:
         logger.exception("Worker failed", error=str(e))
         return 1
+    return 0
 
 
 if __name__ == "__main__":

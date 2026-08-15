@@ -35,7 +35,7 @@ async function loadHealth() {
     const h = await api("/api/health");
     const bar = $("healthBar");
     if (h.nvidia_key_configured) {
-      bar.textContent = `NVIDIA NIM ready · ${h.model}${h.api_key_hint ? " · " + h.api_key_hint : ""}`;
+      bar.textContent = `NVIDIA NIM ready · ${h.model}`;
       bar.className = "status-bar ok";
     } else {
       bar.textContent = "NVIDIA_API_KEY not configured";
