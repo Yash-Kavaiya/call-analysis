@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import sys
 import webbrowser
 from threading import Timer
 
@@ -12,8 +13,16 @@ import uvicorn
 from call_analysis.config import get_settings
 from call_analysis.logging_config import setup_logging
 
+# Import the app object directly — PyInstaller's static analyser can trace this.
+# Passing the string "call_analysis.api.app:app" to uvicorn.run() triggers a
+# dynamic import that PyInstaller misses, causing ModuleNotFoundError in the
+# frozen exe.
+from call_analysis.api.app import app as _fastapi_app  # noqa: E402
+
 # Setup logging early
 setup_logging()
+
+_IS_FROZEN = getattr(sys, "frozen", False)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -35,10 +44,12 @@ def main(argv: list[str] | None = None) -> int:
     if not args.no_browser and os.environ.get("CALL_ANALYSIS_NO_BROWSER") != "1":
         Timer(1.2, lambda: webbrowser.open(url)).start()
 
-    # Use gunicorn in production, uvicorn directly in development
-    if settings.is_production and args.workers > 1:
+    # Reload is impossible inside a frozen PyInstaller exe.
+    reload = args.reload and not _IS_FROZEN
+
+    # Use gunicorn in production with multiple workers (not available when frozen).
+    if settings.is_production and args.workers > 1 and not _IS_FROZEN:
         import subprocess
-        import sys
 
         cmd = [
             sys.executable,
@@ -61,17 +72,21 @@ def main(argv: list[str] | None = None) -> int:
             "-",
         ]
         return subprocess.run(cmd, check=False).returncode
+
+    # Pass the app *object* — not a string — so uvicorn never needs a dynamic
+    # import. This is the key fix for the PyInstaller frozen build.
     uvicorn.run(
-        "call_analysis.api.app:app",
+        _fastapi_app,
         host=args.host,
         port=args.port,
-        reload=args.reload,
+        reload=reload,
         log_level="info" if not settings.debug else "debug",
         access_log=settings.server.access_log,
-        workers=1 if args.reload else args.workers,
+        workers=1,  # must be 1 when passing an app object
     )
     return 0
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

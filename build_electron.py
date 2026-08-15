@@ -66,11 +66,9 @@ def build_backend() -> int:
 
     spec = PROJECT_ROOT / "CallAnalysisBackend.spec"
     src_dir = PROJECT_ROOT / "src"
-    web_src = src_dir / "call_analysis" / "web"
-    alembic_src = src_dir / "call_analysis" / "alembic"
-    datas = [f"('{web_src.as_posix()}', 'call_analysis/web')"]
-    if alembic_src.is_dir():
-        datas.append(f"('{alembic_src.as_posix()}', 'call_analysis/alembic')")
+    ca_src = src_dir / "call_analysis"
+    web_src = ca_src / "web"
+    alembic_src = ca_src / "alembic"
 
     spec.write_text(
         f"""# -*- mode: python ; coding: utf-8 -*-
@@ -78,17 +76,53 @@ def build_backend() -> int:
 
 block_cipher = None
 
-from PyInstaller.utils.hooks import collect_submodules
+from PyInstaller.utils.hooks import collect_all, collect_submodules
+
+# collect_all returns (datas, binaries, hiddenimports) for the package.
+# This is the reliable way to bundle a package that uvicorn loads by string.
+_ca_datas, _ca_binaries, _ca_hiddenimports = collect_all('call_analysis')
 
 a = Analysis(
-    ['{ (src_dir / 'call_analysis' / 'serve.py').as_posix() }'],
+    ['{(src_dir / 'call_analysis' / 'serve.py').as_posix()}'],
     pathex=['{src_dir.as_posix()}', '{PROJECT_ROOT.as_posix()}'],
-    binaries=[],
-    datas=[{', '.join(datas)}],
+    binaries=_ca_binaries,
+    datas=[
+        # Full package source tree — belt-and-suspenders for editable installs
+        # where collect_all may not resolve __init__.py paths correctly.
+        ('{ca_src.as_posix()}', 'call_analysis'),
+        ('{web_src.as_posix()}', 'call_analysis/web'),
+        {f"('{alembic_src.as_posix()}', 'call_analysis/alembic')," if alembic_src.is_dir() else ""}
+        *_ca_datas,
+    ],
     hiddenimports=[
-        # uvicorn loads the app via the string "call_analysis.api.app:app", so
-        # PyInstaller never sees these as imports — pull in the whole package.
-        *collect_submodules('call_analysis'),
+        # Explicit entries for modules uvicorn loads by string at runtime.
+        # PyInstaller static analysis never sees "call_analysis.api.app:app".
+        'call_analysis',
+        'call_analysis.api',
+        'call_analysis.api.app',
+        'call_analysis.serve',
+        'call_analysis.config',
+        'call_analysis.storage',
+        'call_analysis.models',
+        'call_analysis.schemas',
+        'call_analysis.logging_config',
+        'call_analysis.pipeline',
+        'call_analysis.pipeline.runner',
+        'call_analysis.audio',
+        'call_analysis.audio.asr',
+        'call_analysis.audio.diarize',
+        'call_analysis.audio.preprocess',
+        'call_analysis.pii',
+        'call_analysis.pii.scrubber',
+        'call_analysis.agents',
+        'call_analysis.agents.base',
+        'call_analysis.agents.orchestrator',
+        'call_analysis.nim_client',
+        'call_analysis.redis_client',
+        'call_analysis.telemetry',
+        # collect_all submodules (catches anything we missed above)
+        *_ca_hiddenimports,
+        # Third-party hidden imports
         'sqlalchemy.dialects.postgresql',
         'celery.loaders.default',
         'opentelemetry.instrumentation.fastapi',
@@ -196,13 +230,20 @@ def build_desktop(skip_npm: bool, dir_only: bool) -> int:
         print("!! electron/package.json missing")
         return 1
 
+    # On Windows, npm/npx are .cmd shims — shutil.which must find the .cmd
+    # variant explicitly, otherwise subprocess raises WinError 2.
+    npm = shutil.which("npm") or shutil.which("npm.cmd")
+    npx = shutil.which("npx") or shutil.which("npx.cmd")
+    if not npm or not npx:
+        print("!! npm/npx not found on PATH — install Node.js and retry")
+        return 1
+
     if not skip_npm:
-        if run(["npm", "install"], cwd=ELECTRON_DIR) != 0:
+        if run([npm, "install"], cwd=ELECTRON_DIR) != 0:
             return 1
 
     target = "--dir" if dir_only else "--win"
-    npx = shutil.which("npx") or "npx"
-    rc = run([npx, "electron-builder", target, "--config", str(ELECTRON_DIR / "package.json")], cwd=ELECTRON_DIR)
+    rc = run([npx, "electron-builder", target], cwd=ELECTRON_DIR)
     if rc == 0:
         out = PROJECT_ROOT / "dist" / "desktop"
         print(f"\nBuild complete! Installer(s) in: {out}")
