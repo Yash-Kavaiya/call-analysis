@@ -17,6 +17,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
+import httpx
 from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
@@ -30,6 +31,8 @@ from call_analysis.schemas import (
     CopilotResponse,
     ErrorResponse,
     HealthResponse,
+    ImportFolderRequest,
+    ImportHubRequest,
     ImportLocalRequest,
     ImportResponse,
 )
@@ -435,6 +438,134 @@ async def import_local(body: ImportLocalRequest) -> ImportResponse:
             raise HTTPException(status_code=404, detail="No recordings found in project folder")
 
     return ImportResponse(imported=imported, skipped=skipped[:20])
+
+
+def _import_paths(
+    store: CallStore,
+    sources: list[tuple[Path, str]],
+    *,
+    analyze: bool,
+    skip_existing: bool,
+    limit: int,
+) -> ImportResponse:
+    """Register (file, display name) pairs and enqueue analysis for each."""
+    imported: list[dict[str, str]] = []
+    skipped: list[str] = []
+    known = {c.filename for c in store.list_calls()}
+    for path, name in sources:
+        if skip_existing and name in known:
+            skipped.append(name)
+            continue
+        rec = store.register_upload(path, copy=True, filename=name)
+        known.add(name)
+        if analyze:
+            enqueue_analysis(rec.id)
+        imported.append({"id": rec.id, "filename": rec.filename})
+        if len(imported) >= limit:
+            break
+    return ImportResponse(imported=imported, skipped=skipped[:20])
+
+
+@app.post("/api/calls/import-folder", response_model=ImportResponse, tags=["Calls"])
+async def import_folder(body: ImportFolderRequest) -> ImportResponse:
+    from call_analysis.ingest import iter_folder_audio
+
+    try:
+        files = iter_folder_audio(Path(body.path), recursive=body.recursive)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not files:
+        raise HTTPException(
+            status_code=404, detail=f"No audio files found in folder: {body.path}"
+        )
+    result = _import_paths(
+        get_store(),
+        [(f, f.name) for f in files],
+        analyze=body.analyze,
+        skip_existing=body.skip_existing,
+        limit=body.limit,
+    )
+    if not result.imported and not result.skipped:
+        raise HTTPException(status_code=404, detail="No audio files imported")
+    return result
+
+
+@app.post("/api/calls/import-hf", response_model=ImportResponse, tags=["Calls"])
+async def import_huggingface(body: ImportHubRequest) -> ImportResponse:
+    import tempfile
+
+    from call_analysis.ingest import (
+        fetch_huggingface_audio,
+        validate_dataset_id,
+    )
+
+    try:
+        dataset = validate_dataset_id(body.dataset)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    store = get_store()
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            downloaded = await asyncio.to_thread(
+                fetch_huggingface_audio,
+                dataset,
+                dest_dir=Path(tmp),
+                limit=body.limit,
+            )
+            if not downloaded:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"No audio files found in HuggingFace dataset '{dataset}'",
+                )
+            sources = [(p, p.name.split("_", 1)[-1]) for p in downloaded]
+            return _import_paths(
+                store,
+                sources,
+                analyze=body.analyze,
+                skip_existing=body.skip_existing,
+                limit=body.limit,
+            )
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"HuggingFace API error: {exc}") from exc
+
+
+@app.post("/api/calls/import-kaggle", response_model=ImportResponse, tags=["Calls"])
+async def import_kaggle(body: ImportHubRequest) -> ImportResponse:
+    import tempfile
+
+    from call_analysis.ingest import fetch_kaggle_audio, validate_dataset_id
+
+    try:
+        dataset = validate_dataset_id(body.dataset)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    store = get_store()
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            downloaded = await asyncio.to_thread(
+                fetch_kaggle_audio,
+                dataset,
+                dest_dir=Path(tmp),
+                limit=body.limit,
+            )
+            if not downloaded:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"No audio files found in Kaggle dataset '{dataset}'",
+                )
+            return _import_paths(
+                store,
+                [(p, p.name) for p in downloaded],
+                analyze=body.analyze,
+                skip_existing=body.skip_existing,
+                limit=body.limit,
+            )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"Kaggle API error: {exc}") from exc
 
 
 @app.post("/api/calls/{call_id}/analyze", tags=["Calls"])

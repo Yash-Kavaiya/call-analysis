@@ -7,7 +7,7 @@ End-to-end contact center platform on the **NVIDIA free AI stack** (hosted NIM v
 ## ��� Features
 
 ### Core Pipeline
-- **Audio Ingestion**: Upload `.m4a`, `.wav`, `.mp3`, `.ogg`, `.flac` recordings
+- **Audio Ingestion**: Upload `.m4a`, `.wav`, `.mp3`, `.ogg`, `.flac` recordings — or import from a local folder, a HuggingFace dataset repo, or a Kaggle dataset
 - **ASR (Speech-to-Text)**: faster-whisper with GPU→CPU fallback (tiny/base/small/medium/large-v3)
 - **Speaker Diarization**: Heuristic turn-taking (2-4 speakers) with optional pyannote.audio integration
 - **PII Detection & Redaction**: Regex + ML-based detection for emails, phones, credit cards, SSN, Aadhaar, account numbers
@@ -77,7 +77,7 @@ celery -A call_analysis.celery_app beat --loglevel=INFO
 ```
 
 ### 5. Access Dashboard
-Open http://127.0.0.1:8787/ — upload a recording, **Import 1 sample**, or **Import batch (3)**.
+Open http://127.0.0.1:8787/ — upload recording(s), **Import 1 sample**, **Import batch (3)**, or use the **Ingest** panel to pull calls from a local folder, a HuggingFace dataset (`user/dataset`), or a Kaggle dataset (`user/dataset`, needs `KAGGLE_USERNAME`/`KAGGLE_KEY`).
 
 ## ��� Docker Deployment (Recommended)
 
@@ -157,6 +157,9 @@ GET    /api/calls               - List calls (paginated)
 GET    /api/calls/{id}          - Get call details
 POST   /api/calls/upload        - Upload recording
 POST   /api/calls/import-local  - Import from local path
+POST   /api/calls/import-folder  - Import all audio under a folder (recursive)
+POST   /api/calls/import-hf      - Import audio from a HuggingFace dataset repo
+POST   /api/calls/import-kaggle  - Import audio from a Kaggle dataset archive
 POST   /api/calls/{id}/analyze  - Re-analyze call
 POST   /api/calls/{id}/copilot  - Ask copilot question
 DELETE /api/calls/{id}          - Delete call

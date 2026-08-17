@@ -398,32 +398,99 @@ async function importSamples(limit) {
   if (first) await selectCall(first.id);
 }
 
+async function importSource(endpoint, body, label) {
+  toast(`Importing from ${label}…`);
+  const data = await api(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const n = (data.imported || []).length;
+  const sk = (data.skipped || []).length;
+  toast(
+    n
+      ? `Imported ${n} call(s)${sk ? `, ${sk} skipped` : ""}`
+      : sk
+        ? `No new files (${sk} already imported)`
+        : "Nothing imported"
+  );
+  await loadCalls();
+  const first = data.imported?.[0];
+  if (first) await selectCall(first.id);
+}
+
 // Events
 $("refreshBtn").onclick = () =>
   Promise.all([loadCalls(), loadHealth()]).catch((e) => toast(e.message));
 
 $("fileInput").onchange = async (ev) => {
-  const file = ev.target.files?.[0];
-  if (!file) return;
-  const fd = new FormData();
-  fd.append("file", file);
-  try {
-    toast("Uploading…");
-    const res = await fetch("/api/calls/upload?analyze=true", { method: "POST", body: fd });
-    if (!res.ok) throw new Error(await res.text());
-    const data = await res.json();
-    toast(`Queued ${data.filename}`);
-    await loadCalls();
-    await selectCall(data.id);
-  } catch (e) {
-    toast(`Upload failed: ${e.message}`);
-  } finally {
-    ev.target.value = "";
+  const files = [...(ev.target.files || [])];
+  if (!files.length) return;
+  let queued = 0;
+  let firstId = null;
+  for (const file of files) {
+    const fd = new FormData();
+    fd.append("file", file);
+    try {
+      toast(`Uploading ${file.name}…`);
+      const res = await fetch("/api/calls/upload?analyze=true", { method: "POST", body: fd });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      queued++;
+      if (!firstId) firstId = data.id;
+    } catch (e) {
+      toast(`Upload failed for ${file.name}: ${e.message}`);
+    }
   }
+  ev.target.value = "";
+  toast(queued ? `Queued ${queued} recording(s)` : "No recordings uploaded");
+  await loadCalls();
+  if (firstId) await selectCall(firstId);
 };
 
 $("importBtn").onclick = () => importSamples(1).catch((e) => toast(e.message));
 $("importBatchBtn").onclick = () => importSamples(3).catch((e) => toast(e.message));
+
+$("folderImportBtn").onclick = () => {
+  const path = $("folderPath").value.trim();
+  if (!path) return toast("Enter a folder path");
+  importSource(
+    "/api/calls/import-folder",
+    { path, limit: 50, analyze: true, skip_existing: true },
+    "folder"
+  ).catch((e) => toast(e.message));
+};
+
+$("hfImportBtn").onclick = () => {
+  const dataset = $("hfDataset").value.trim();
+  if (!dataset) return toast("Enter a HuggingFace dataset id (user/dataset)");
+  importSource(
+    "/api/calls/import-hf",
+    { dataset, limit: 10, analyze: true, skip_existing: true },
+    "HuggingFace"
+  ).catch((e) => toast(e.message));
+};
+
+$("kaggleImportBtn").onclick = () => {
+  const dataset = $("kaggleDataset").value.trim();
+  if (!dataset) return toast("Enter a Kaggle dataset id (user/dataset)");
+  importSource(
+    "/api/calls/import-kaggle",
+    { dataset, limit: 10, analyze: true, skip_existing: true },
+    "Kaggle"
+  ).catch((e) => toast(e.message));
+};
+
+// Enter submits for the ingest inputs
+for (const [input, btn] of [
+  ["folderPath", "folderImportBtn"],
+  ["hfDataset", "hfImportBtn"],
+  ["kaggleDataset", "kaggleImportBtn"],
+]) {
+  $(input).addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter") $(btn).click();
+  });
+}
 
 $("reanalyzeBtn").onclick = async () => {
   if (!state.selectedId) return;

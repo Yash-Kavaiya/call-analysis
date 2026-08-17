@@ -1,6 +1,7 @@
 """API structural tests with TestClient (no live ASR)."""
 
 from pathlib import Path
+from typing import Any
 
 from fastapi.testclient import TestClient
 
@@ -122,3 +123,179 @@ def test_analytics_endpoint(tmp_path: Path):
     assert body["total_calls"] == 0
     assert "avg_qa_score" in body
     assert body["languages"] == {}
+
+
+def test_import_folder_registers_audio(tmp_path: Path):
+    store = CallStore(data_dir=tmp_path)
+    app = create_app(store=store)
+    client = TestClient(app)
+    folder = tmp_path / "recordings"
+    folder.mkdir()
+    (folder / "a.m4a").write_bytes(b"fake-audio")
+    (folder / "sub").mkdir()
+    (folder / "sub" / "b.wav").write_bytes(b"fake-audio")
+    (folder / "notes.txt").write_text("ignore me")
+
+    r = client.post("/api/calls/import-folder", json={"path": str(folder), "analyze": False})
+    assert r.status_code == 200
+    body = r.json()
+    assert {i["filename"] for i in body["imported"]} == {"a.m4a", "b.wav"}
+    assert body["skipped"] == []
+
+    # Non-recursive only picks up the top-level file (skip_existing off so
+    # the already-imported a.m4a is imported again)
+    r2 = client.post(
+        "/api/calls/import-folder",
+        json={
+            "path": str(folder),
+            "analyze": False,
+            "recursive": False,
+            "skip_existing": False,
+        },
+    )
+    assert r2.status_code == 200
+    assert {i["filename"] for i in r2.json()["imported"]} == {"a.m4a"}
+
+
+def test_import_folder_missing_returns_400(tmp_path: Path):
+    store = CallStore(data_dir=tmp_path)
+    app = create_app(store=store)
+    client = TestClient(app)
+    r = client.post(
+        "/api/calls/import-folder",
+        json={"path": str(tmp_path / "nope"), "analyze": False},
+    )
+    assert r.status_code == 400
+    assert "Folder not found" in r.json()["detail"]
+
+
+def test_import_folder_no_audio_returns_404(tmp_path: Path):
+    store = CallStore(data_dir=tmp_path)
+    app = create_app(store=store)
+    client = TestClient(app)
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    (empty / "notes.txt").write_text("no audio here")
+    r = client.post(
+        "/api/calls/import-folder",
+        json={"path": str(empty), "analyze": False},
+    )
+    assert r.status_code == 404
+
+
+def test_import_huggingface_downloads_audio(tmp_path: Path, monkeypatch):
+    import httpx
+
+    from call_analysis import ingest as ingest_mod
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/tree/main"):
+            return httpx.Response(
+                200,
+                json=[
+                    {"type": "directory", "path": "data"},
+                    {"type": "file", "path": "data/sample1.flac", "size": 123},
+                    {"type": "file", "path": "data/readme.txt", "size": 10},
+                ],
+            )
+        if "/resolve/main/" in request.url.path:
+            return httpx.Response(200, content=b"fake-audio")
+        raise AssertionError(f"unexpected URL {request.url}")
+
+    transport = httpx.MockTransport(handler)
+    # Inject the mock transport only for ingest-originated clients; TestClient
+    # also builds httpx clients and passes its own transport kwarg.
+    real_client = ingest_mod.httpx.Client
+
+    def factory(*args: Any, **kw: Any) -> Any:
+        if kw.get("transport") is None:
+            kw["transport"] = transport
+        return real_client(*args, **kw)
+
+    monkeypatch.setattr(ingest_mod.httpx, "Client", factory)
+
+    store = CallStore(data_dir=tmp_path)
+    app = create_app(store=store)
+    client = TestClient(app)
+    r = client.post(
+        "/api/calls/import-hf",
+        json={"dataset": "org/demo", "analyze": False},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert len(body["imported"]) == 1
+    assert body["imported"][0]["filename"] == "sample1.flac"
+
+
+def test_import_huggingface_invalid_dataset_returns_400(tmp_path: Path):
+    store = CallStore(data_dir=tmp_path)
+    app = create_app(store=store)
+    client = TestClient(app)
+    r = client.post(
+        "/api/calls/import-hf",
+        json={"dataset": "../bad path", "analyze": False},
+    )
+    assert r.status_code == 400
+    assert "Invalid dataset id" in r.json()["detail"]
+
+
+def test_import_kaggle_downloads_audio(tmp_path: Path, monkeypatch):
+    import io
+    import zipfile
+
+    import httpx
+
+    from call_analysis import ingest as ingest_mod
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.startswith("/api/v1/datasets/download/"):
+            buf = io.BytesIO()
+            with zipfile.ZipFile(buf, "w") as zf:
+                zf.writestr("call1.mp3", b"fake-audio")
+                zf.writestr("notes.txt", "ignore")
+            return httpx.Response(200, content=buf.getvalue())
+        raise AssertionError(f"unexpected URL {request.url}")
+
+    transport = httpx.MockTransport(handler)
+    real_client = ingest_mod.httpx.Client
+
+    def factory(*args: Any, **kw: Any) -> Any:
+        if kw.get("transport") is None:
+            kw["transport"] = transport
+        return real_client(*args, **kw)
+
+    monkeypatch.setattr(ingest_mod.httpx, "Client", factory)
+    monkeypatch.setenv("KAGGLE_USERNAME", "user")
+    monkeypatch.setenv("KAGGLE_KEY", "secret")
+
+    store = CallStore(data_dir=tmp_path)
+    app = create_app(store=store)
+    client = TestClient(app)
+    r = client.post(
+        "/api/calls/import-kaggle",
+        json={"dataset": "user/calls", "analyze": False},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert len(body["imported"]) == 1
+    assert body["imported"][0]["filename"] == "call1.mp3"
+
+
+def test_import_kaggle_missing_credentials_returns_400(tmp_path: Path, monkeypatch):
+    from call_analysis import ingest as ingest_mod
+
+    # Deterministic: simulate missing credentials regardless of a real
+    # ~/.kaggle/kaggle.json on the dev machine.
+    def _no_creds() -> None:
+        raise RuntimeError("Kaggle credentials not found.")
+
+    monkeypatch.setattr(ingest_mod, "kaggle_credentials", _no_creds)
+    store = CallStore(data_dir=tmp_path)
+    app = create_app(store=store)
+    client = TestClient(app)
+    r = client.post(
+        "/api/calls/import-kaggle",
+        json={"dataset": "user/calls", "analyze": False},
+    )
+    assert r.status_code == 400
+    assert "Kaggle credentials" in r.json()["detail"]

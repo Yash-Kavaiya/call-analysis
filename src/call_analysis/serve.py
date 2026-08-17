@@ -10,14 +10,13 @@ from threading import Timer
 
 import uvicorn
 
-from call_analysis.config import get_settings
-from call_analysis.logging_config import setup_logging
-
 # Import the app object directly — PyInstaller's static analyser can trace this.
 # Passing the string "call_analysis.api.app:app" to uvicorn.run() triggers a
 # dynamic import that PyInstaller misses, causing ModuleNotFoundError in the
 # frozen exe.
-from call_analysis.api.app import app as _fastapi_app  # noqa: E402
+from call_analysis.api.app import app as _fastapi_app
+from call_analysis.config import get_settings
+from call_analysis.logging_config import setup_logging
 
 # Setup logging early
 setup_logging()

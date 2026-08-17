@@ -28,12 +28,33 @@
       <div class="panel upload-panel">
         <h2>Ingest</h2>
         <label class="file-btn">
-          <input type="file" id="fileInput" accept="audio/*,.m4a,.wav,.mp3" hidden />
-          Upload Recording
+          <input type="file" id="fileInput" accept="audio/*,.m4a,.wav,.mp3,.ogg,.flac" multiple hidden />
+          Upload Recording(s)
         </label>
         <button id="importBtn" class="btn secondary" type="button">Import 1 sample</button>
         <button id="importBatchBtn" class="btn secondary" type="button">Import batch (3)</button>
-        <p class="hint">Text/voice · local bucket/folder/file</p>
+
+        <hr class="ingest-sep" />
+        <label class="field-label" for="folderPath">Local folder</label>
+        <div class="ingest-row">
+          <input id="folderPath" class="text-input" type="text" placeholder="C:\recordings\calls" />
+          <button id="folderImportBtn" class="btn secondary compact" type="button">Import</button>
+        </div>
+
+        <hr class="ingest-sep" />
+        <label class="field-label" for="hfDataset">HuggingFace dataset</label>
+        <div class="ingest-row">
+          <input id="hfDataset" class="text-input" type="text" placeholder="user/dataset" />
+          <button id="hfImportBtn" class="btn secondary compact" type="button">Import</button>
+        </div>
+
+        <hr class="ingest-sep" />
+        <label class="field-label" for="kaggleDataset">Kaggle dataset</label>
+        <div class="ingest-row">
+          <input id="kaggleDataset" class="text-input" type="text" placeholder="user/dataset" />
+          <button id="kaggleImportBtn" class="btn secondary compact" type="button">Import</button>
+        </div>
+        <p class="hint">Local folder/files · HuggingFace · Kaggle (needs KAGGLE_USERNAME/KEY)</p>
       </div>
 
       <div class="panel stats-panel" id="statsPanel">

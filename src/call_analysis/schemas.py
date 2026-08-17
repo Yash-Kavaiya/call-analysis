@@ -362,6 +362,21 @@ class ImportLocalRequest(BaseModel):
     skip_existing: bool = True
 
 
+class ImportFolderRequest(BaseModel):
+    path: str = Field(..., min_length=1, max_length=1000)
+    limit: int = Field(default=50, ge=1, le=500)
+    analyze: bool = True
+    skip_existing: bool = True
+    recursive: bool = True
+
+
+class ImportHubRequest(BaseModel):
+    dataset: str = Field(..., min_length=1, max_length=300)
+    limit: int = Field(default=10, ge=1, le=100)
+    analyze: bool = True
+    skip_existing: bool = True
+
+
 class ImportResponse(BaseModel):
     imported: list[dict[str, str]]
     skipped: list[str]
