@@ -1,0 +1,69 @@
+<template>
+  <style>
+    @font-face { font-family: "Segoe UI"; src: url(assets/fonts/inter-400.woff2) format("woff2"); font-weight: 400; font-style: normal; }
+    @font-face { font-family: "Segoe UI"; src: url(assets/fonts/inter-600.woff2) format("woff2"); font-weight: 600; font-style: normal; }
+    @font-face { font-family: "Segoe UI"; src: url(assets/fonts/inter-700.woff2) format("woff2"); font-weight: 700; font-style: normal; }
+    #root { position: absolute; inset: 0; overflow: hidden; container-type: size; background: transparent; color: #E8E8EF; font-family: "Segoe UI", system-ui, sans-serif; }
+    .clip { position: absolute; inset: 0; }
+    #sc-bg { background: #0A0A0F; }
+    #shot-wrap { position: absolute; inset: 0; overflow: hidden; }
+    #shot { position: absolute; top: 64px; left: 192px; width: 1536px; height: 864px; object-fit: cover; }
+    #dim { position: absolute; inset: 0; background: rgba(10,10,15,0.30); }
+    #card { position: absolute; top: 9cqh; left: 5cqw; width: 34cqw; padding: 1.8cqw 2.2cqw 2.2cqw; background: rgba(10,10,15,0.72); border: 1.5px solid rgba(118,185,0,0.2); border-radius: 14px; }
+    #headline { font-size: 2.1cqw; font-weight: 600; line-height: 1.15; letter-spacing: -0.02em; color: #E8E8EF; }
+    .chip { position: absolute; display: flex; align-items: center; gap: 0.9cqw; padding: 0.85cqw 1.2cqw; background: rgba(10,10,15,0.78); border: 1.5px solid rgba(118,185,0,0.3); border-radius: 12px; opacity: 0; }
+    .tick { width: 1.4cqw; height: 1.4cqw; border-radius: 50%; background: #76B900; flex: none; }
+    .tick svg { display: block; width: 100%; height: 100%; }
+    .tick path { stroke: #0A0A0F; stroke-width: 3; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+    .chip-label { font-size: 0.92cqw; font-weight: 600; color: #E8E8EF; }
+    #c1 { left: 62cqw; top: 38cqh; }
+    #c2 { left: 62cqw; top: 48cqh; }
+    #c3 { left: 62cqw; top: 58cqh; }
+    #c4 { left: 76cqw; top: 38cqh; }
+    #c5 { left: 76cqw; top: 48cqh; }
+    #fleet { position: absolute; left: 62cqw; top: 72cqh; padding: 1.2cqw 1.8cqw; background: rgba(10,10,15,0.80); border: 1.5px solid rgba(118,185,0,0.3); border-radius: 14px; text-align: center; opacity: 0; }
+    #fleet-num { font-size: 3.0cqw; font-weight: 700; line-height: 1.0; color: #76B900; }
+    #fleet-label { margin-top: 0.5cqw; font-size: 0.8cqw; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: #8B8BA3; }
+  </style>
+  <div id="root" data-composition-id="05-scorecards" data-width="1920" data-height="1080" data-duration="10">
+    <div id="sc-bg" class="clip" data-start="0" data-duration="10" data-track-index="1"></div>
+    <div id="shot-wrap" class="clip" data-start="0" data-duration="10" data-track-index="2">
+      <img id="shot" src="assets/detail-top.png" alt="" />
+      <div id="dim"></div>
+      <div id="card">
+        <div id="headline">Scored on every axis.</div>
+      </div>
+      <div class="chip" id="c1"><span class="tick"><svg viewBox="0 0 24 24"><path d="M4 12.5 L10 18.5 L20 6"/></svg></span><span class="chip-label">QA scorecard</span></div>
+      <div class="chip" id="c2"><span class="tick"><svg viewBox="0 0 24 24"><path d="M4 12.5 L10 18.5 L20 6"/></svg></span><span class="chip-label">Compliance risk</span></div>
+      <div class="chip" id="c3"><span class="tick"><svg viewBox="0 0 24 24"><path d="M4 12.5 L10 18.5 L20 6"/></svg></span><span class="chip-label">Sentiment</span></div>
+      <div class="chip" id="c4"><span class="tick"><svg viewBox="0 0 24 24"><path d="M4 12.5 L10 18.5 L20 6"/></svg></span><span class="chip-label">Root cause &amp; intent</span></div>
+      <div class="chip" id="c5"><span class="tick"><svg viewBox="0 0 24 24"><path d="M4 12.5 L10 18.5 L20 6"/></svg></span><span class="chip-label">CRM action items</span></div>
+      <div id="fleet">
+        <div id="fleet-num">14</div>
+        <div id="fleet-label">calls · scored</div>
+      </div>
+    </div>
+  </div>
+  <script>
+    window.__timelines = window.__timelines || {};
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo("#shot", { opacity: 0, scale: 0.97 }, { opacity: 1, scale: 1, duration: 0.7, ease: "power3.out" }, 0);
+    tl.fromTo("#dim", { opacity: 0 }, { opacity: 1, duration: 0.6, ease: "power2.out" }, 0.2);
+    tl.fromTo("#card", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 0.8);
+    const chips = [
+      { el: "#c1", t: 2.0 },
+      { el: "#c2", t: 3.1 },
+      { el: "#c3", t: 4.2 },
+      { el: "#c4", t: 5.3 },
+      { el: "#c5", t: 6.4 },
+    ];
+    for (const c of chips) {
+      tl.fromTo(c.el, { opacity: 0, y: 14, scale: 0.94 }, { opacity: 1, y: 0, scale: 1, duration: 0.4, ease: "power3.out" }, c.t);
+      tl.fromTo(c.el + " .tick", { scale: 0 }, { scale: 1, duration: 0.3, ease: "back.out(2.4)" }, c.t + 0.2);
+      tl.fromTo(c.el + " .tick path", { strokeDasharray: 24, strokeDashoffset: 24 }, { strokeDashoffset: 0, duration: 0.25, ease: "power1.out" }, c.t + 0.25);
+    }
+    tl.fromTo("#fleet", { opacity: 0, y: 16, scale: 0.95 }, { opacity: 1, y: 0, scale: 1, duration: 0.45, ease: "back.out(1.8)" }, 7.6);
+    tl.fromTo("#fleet-num", { opacity: 0 }, { opacity: 1, duration: 0.3 }, 7.7);
+    window.__timelines["05-scorecards"] = tl;
+  </script>
+</template>

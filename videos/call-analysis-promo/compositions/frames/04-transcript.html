@@ -1,0 +1,53 @@
+<template>
+  <style>
+    @font-face { font-family: "Segoe UI"; src: url(assets/fonts/inter-400.woff2) format("woff2"); font-weight: 400; font-style: normal; }
+    @font-face { font-family: "Segoe UI"; src: url(assets/fonts/inter-600.woff2) format("woff2"); font-weight: 600; font-style: normal; }
+    @font-face { font-family: "Segoe UI"; src: url(assets/fonts/inter-700.woff2) format("woff2"); font-weight: 700; font-style: normal; }
+    #root { position: absolute; inset: 0; overflow: hidden; container-type: size; background: transparent; color: #E8E8EF; font-family: "Segoe UI", system-ui, sans-serif; }
+    .clip { position: absolute; inset: 0; }
+    #trans-bg { background: #0A0A0F; }
+    #shot-wrap { position: absolute; inset: 0; overflow: hidden; }
+    #shot-inner { position: absolute; top: -60px; left: -140px; width: 2208px; height: 1242px; }
+    #shot { position: absolute; top: 0; left: 0; width: 2208px; height: 1242px; object-fit: cover; }
+    #dim { position: absolute; inset: 0; background: rgba(10,10,15,0.30); }
+    #card { position: absolute; top: 9cqh; left: 5cqw; width: 40cqw; padding: 1.8cqw 2.2cqw 2.2cqw; background: rgba(10,10,15,0.72); border: 1.5px solid rgba(118,185,0,0.2); border-radius: 14px; }
+    #headline { font-size: 2.1cqw; font-weight: 600; line-height: 1.15; letter-spacing: -0.02em; color: #E8E8EF; }
+    #sub { margin-top: 1.1cqw; font-size: 0.95cqw; font-weight: 400; line-height: 1.55; color: #8B8BA3; opacity: 0; }
+    #pii-pill { position: absolute; top: 27.5cqh; right: 8cqw; padding: 0.7cqw 1.5cqw; background: rgba(118,185,0,0.10); border: 1px solid rgba(118,185,0,0.35); border-radius: 100px; font-size: 0.78cqw; font-weight: 600; color: #76B900; letter-spacing: 0.03em; opacity: 0; }
+    .hl { position: absolute; left: 34cqw; height: 4.6cqh; border-radius: 4px; background: rgba(118,185,0,0.22); border-left: 3px solid #76B900; opacity: 0; }
+    #hl1 { top: 36.5cqh; width: 46cqw; }
+    #hl2 { top: 43.5cqh; width: 38cqw; }
+    #hl3 { top: 50.5cqh; width: 42cqw; }
+  </style>
+  <div id="root" data-composition-id="04-transcript" data-width="1920" data-height="1080" data-duration="10">
+    <div id="trans-bg" class="clip" data-start="0" data-duration="10" data-track-index="1"></div>
+    <div id="shot-wrap" class="clip" data-start="0" data-duration="10" data-track-index="2">
+      <div id="shot-inner" data-layout-allow-overflow>
+        <img id="shot" src="assets/detail-transcript.png" alt="" />
+      </div>
+      <div id="dim"></div>
+      <div id="card">
+        <div id="headline">A transcript you can trust.</div>
+        <div id="sub">PII redacted automatically — every finding flagged.</div>
+      </div>
+      <div id="pii-pill">PII redacted</div>
+      <div class="hl" id="hl1"></div>
+      <div class="hl" id="hl2"></div>
+      <div class="hl" id="hl3"></div>
+    </div>
+  </div>
+  <script>
+    window.__timelines = window.__timelines || {};
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo("#shot", { opacity: 0 }, { opacity: 1, duration: 0.7, ease: "power2.out" }, 0);
+    tl.fromTo("#shot-inner", { y: 0 }, { y: -130, duration: 3.0, ease: "power2.inOut" }, 0);
+    tl.fromTo("#dim", { opacity: 0 }, { opacity: 1, duration: 0.6, ease: "power2.out" }, 0.2);
+    tl.fromTo("#card", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 0.9);
+    tl.fromTo("#pii-pill", { opacity: 0, scale: 0.75 }, { opacity: 1, scale: 1, duration: 0.45, ease: "back.out(2.2)" }, 3.1);
+    tl.fromTo("#hl1", { opacity: 0, scaleX: 0 }, { opacity: 1, scaleX: 1, duration: 0.6, ease: "power2.out" }, 3.6);
+    tl.fromTo("#hl2", { opacity: 0, scaleX: 0 }, { opacity: 1, scaleX: 1, duration: 0.6, ease: "power2.out" }, 4.2);
+    tl.fromTo("#hl3", { opacity: 0, scaleX: 0 }, { opacity: 1, scaleX: 1, duration: 0.6, ease: "power2.out" }, 4.8);
+    tl.fromTo("#sub", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 5.6);
+    window.__timelines["04-transcript"] = tl;
+  </script>
+</template>

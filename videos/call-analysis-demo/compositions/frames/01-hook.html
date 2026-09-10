@@ -1,0 +1,56 @@
+<template>
+  <style>
+    @font-face { font-family: "Segoe UI"; src: local("Segoe UI"); }
+    @font-face { font-family: "Consolas"; src: local("Consolas"); }
+    #root { position: absolute; inset: 0; background: transparent; color: #e8e8ef; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; }
+    .clip { position: absolute; }
+    .bg { position: absolute; inset: 0; background:
+      radial-gradient(ellipse 1400px 700px at 50% 42%, rgba(118,185,0,0.08), transparent 65%),
+      #0a0a0f; }
+    .stage { position: absolute; top: 0; left: 0; right: 0; height: 880px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 34px; text-align: center; }
+    .kicker { font-family: "Consolas", monospace; font-size: 26px; letter-spacing: 0.34em; text-transform: uppercase; color: #76b900; }
+    .rule { width: 72px; height: 3px; background: #76b900; }
+    .line { font-size: 104px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.06; color: #e8e8ef; }
+    .line .word { display: inline-block; }
+    .line.accent { color: #76b900; }
+    .glow { position: absolute; left: 50%; top: 50%; width: 900px; height: 420px; transform: translate(-50%, -50%); background: radial-gradient(ellipse, rgba(118,185,0,0.30), transparent 70%); opacity: 0; }
+    .sub { font-family: "Consolas", monospace; font-size: 18px; letter-spacing: 0.22em; text-transform: uppercase; color: #8b8ba3; margin-top: 6px; }
+  </style>
+  <div id="root" data-composition-id="01-hook" data-duration="6.4" data-width="1920" data-height="1080">
+    <div class="clip bg" data-start="0" data-duration="6.4" data-track-index="1"></div>
+    <div class="glow" id="g1"></div>
+    <div class="clip stage" data-start="0" data-duration="6.4" data-track-index="2">
+      <div class="kicker" id="k1">CALL&nbsp;ANALYSIS</div>
+      <div class="rule" id="r1"></div>
+      <div class="line" id="l1"><span class="word">every</span> <span class="word">call</span> <span class="word">tells</span> <span class="word">you</span> <span class="word">something.</span></div>
+      <div class="line accent" id="l2"><span class="word">most</span> <span class="word">teams</span> <span class="word">never</span> <span class="word">hear</span> <span class="word">it.</span></div>
+      <div class="sub" id="s1">CONTACT CENTER INTELLIGENCE</div>
+    </div>
+  </div>
+  <script>
+    window.__timelines = window.__timelines || {};
+    const tl = gsap.timeline({ paused: true });
+    const w1 = document.querySelectorAll("#l1 .word");
+    const w2 = document.querySelectorAll("#l2 .word");
+    // Scene 1 — kicker + rule
+    tl.fromTo("#k1", { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 0.1);
+    tl.fromTo("#r1", { scaleX: 0, opacity: 0 }, { scaleX: 1, opacity: 1, duration: 0.45, ease: "power3.out" }, 0.5);
+    // Scene 2 — first line per-word staggered
+    w1.forEach((w, i) => {
+      tl.fromTo(w, { opacity: 0, y: 26 }, { opacity: 1, y: 0, duration: 0.34, ease: "power3.out" }, 1.15 + i * 0.16);
+    });
+    tl.to("#g1", { opacity: 1, duration: 0.6, ease: "power2.out" }, 2.0);
+    // Scene 3 — second line swaps in, accent
+    tl.set("#l2", { opacity: 0 }, 3.15);
+    tl.to("#l2", { opacity: 1, duration: 0.12 }, 3.15);
+    w2.forEach((w, i) => {
+      tl.fromTo(w, { opacity: 0, scale: 0.92 }, { opacity: 1, scale: 1, duration: 0.36, ease: "power3.out" }, 3.3 + i * 0.15);
+    });
+    tl.fromTo("#s1", { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 4.0);
+    // Scene 4 — hold with subtle jitter on accent line
+    tl.to("#l2", { x: 1.5, duration: 0.28, ease: "sine.inOut" }, 5.0);
+    tl.to("#l2", { x: -1.5, duration: 0.28, ease: "sine.inOut" }, 5.3);
+    tl.to("#l2", { x: 0, duration: 0.28, ease: "sine.inOut" }, 5.6);
+    window.__timelines["01-hook"] = tl;
+  </script>
+</template>

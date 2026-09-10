@@ -1,0 +1,67 @@
+<template>
+  <style>
+    @font-face { font-family: "Segoe UI"; src: local("Segoe UI"); }
+    @font-face { font-family: "Consolas"; src: local("Consolas"); }
+    #root { position: absolute; inset: 0; background: transparent; color: #e8e8ef; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; }
+    .clip { position: absolute; }
+    .bg { position: absolute; inset: 0; background:
+      radial-gradient(ellipse 1400px 700px at 50% 40%, rgba(118,185,0,0.06), transparent 60%),
+      #0a0a0f; }
+    .stage { position: absolute; top: 0; left: 0; right: 0; height: 880px; display: flex; align-items: center; justify-content: center; gap: 50px; }
+    .list { width: 560px; border: 1px solid #2a2a3d; background: #16161f; border-radius: 14px; overflow: hidden; box-shadow: 0 30px 80px rgba(0,0,0,0.5); }
+    .list .dh { height: 52px; border-bottom: 1px solid #2a2a3d; display: flex; align-items: center; padding: 0 22px; gap: 10px; }
+    .list .dot { width: 13px; height: 13px; border-radius: 50%; background: #2a2a3d; }
+    .list img { display: block; width: 100%; height: auto; }
+    .right { display: flex; flex-direction: column; gap: 28px; align-items: center; }
+    .metrics { width: 560px; border: 1px solid #2a2a3d; background: #16161f; border-radius: 14px; overflow: hidden; box-shadow: 0 30px 80px rgba(0,0,0,0.5); }
+    .metrics img { display: block; width: 100%; height: auto; }
+    .scorecard { width: 560px; border: 1px solid #2a2a3d; background: #16161f; border-radius: 14px; padding: 30px 40px; display: flex; align-items: center; gap: 34px; box-shadow: 0 30px 80px rgba(0,0,0,0.5); }
+    .score-ring { width: 150px; height: 150px; border-radius: 50%; border: 12px solid #1e2a1a; display: flex; align-items: center; justify-content: center; position: relative; flex: 0 0 auto; }
+    .score-ring .fill { position: absolute; inset: 0; border-radius: 50%; border: 12px solid #76b900; border-left-color: transparent; border-bottom-color: transparent; transform: rotate(-90deg); }
+    .score-ring .num { font-size: 58px; font-weight: 900; color: #89d100; }
+    .score-meta { display: flex; flex-direction: column; gap: 10px; }
+    .score-meta .label { font-family: "Consolas", monospace; font-size: 17px; letter-spacing: 0.14em; text-transform: uppercase; color: #8b8ba3; }
+    .score-meta .headline { font-size: 30px; font-weight: 700; color: #e8e8ef; }
+    .glow { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 1000px; height: 560px; background: radial-gradient(ellipse, rgba(118,185,0,0.20), transparent 70%); opacity: 0; }
+  </style>
+  <div id="root" data-composition-id="06-dashboard" data-duration="12.5" data-width="1920" data-height="1080">
+    <div class="clip bg" data-start="0" data-duration="12.5" data-track-index="1"></div>
+    <div class="glow" id="g6"></div>
+    <div class="clip stage" data-start="0" data-duration="12.5" data-track-index="2">
+      <div class="list" id="ls1">
+        <div class="dh"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+        <img src="assets/calls-dark.png" alt="calls list">
+      </div>
+      <div class="right">
+        <div class="metrics" id="mt1">
+          <img src="assets/metrics.png" alt="kpi metrics">
+        </div>
+        <div class="scorecard" id="sc1">
+          <div class="score-ring"><div class="fill" id="sf1"></div><div class="num" id="sn1">0</div></div>
+          <div class="score-meta">
+            <div class="label">QA SCORECARD</div>
+            <div class="headline">this call, graded</div>
+            <div class="label">87 / 100</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    window.__timelines = window.__timelines || {};
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo("#ls1", { opacity: 0, x: -50 }, { opacity: 1, x: 0, duration: 0.7, ease: "power3.out" }, 0.2);
+    tl.fromTo("#mt1", { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.6, ease: "power3.out" }, 0.9);
+    tl.fromTo("#sc1", { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.6, ease: "power3.out" }, 1.6);
+    // Scene 2 — ring sweeps + count-up 0→87
+    tl.to("#sf1", { rotate: 200, duration: 1.6, ease: "power2.inOut" }, 2.0);
+    const counter = { v: 0 };
+    tl.to(counter, {
+      v: 87, duration: 1.6, ease: "power2.inOut", onUpdate: () => {
+        document.getElementById("sn1").textContent = Math.round(counter.v);
+      }
+    }, 2.0);
+    tl.to("#g6", { opacity: 1, duration: 0.9, ease: "power2.out" }, 2.8);
+    window.__timelines["06-dashboard"] = tl;
+  </script>
+</template>

@@ -1,0 +1,64 @@
+[div] NVIDIA
+[h1] Call Analysis
+[p] Contact Center Intelligence
+[h2] Ingest
+[label] Upload Recording
+[button] Import 1 sample
+[button] Import batch (3)
+[p] Text/voice · local bucket/folder/file
+[h2] Fleet analytics
+[span] Calls
+[span] Avg QA
+[span] Compliance
+[span] PII hits
+[h2] Calls
+[div] Call recording +14159699735_251005_084337.m4a
+[span] completed
+[span] QA 40
+[div] Call recording +911409093790_250912_144611.m4a
+[span] completed
+[span] QA 20
+[div] hello.m4a
+[span] failed
+[div] hello.m4a
+[span] failed
+[div] Call recording Devanshi Pandya TCS_251113_101317.m4a
+[span] completed
+[span] QA 20
+[div] Call recording ⛔ Spam Alert From Jio_251023_182410.m4a
+[span] completed
+[span] QA 20
+[div] Call recording ⛔ Spam Alert From Jio_251023_182410.m4a
+[span] completed
+[span] QA 60
+[div] Call recording ⛔ Spam Alert From Jio_251023_182410.m4a
+[span] completed
+[div] Call recording +919916294790_251112_174007.m4a
+[span] completed
+[span] QA 20
+[div] Call recording +914065197419_251112_154751.m4a
+[span] completed
+[span] QA 40
+[div] Call recording +918485823280_251112_163543.m4a
+[span] completed
+[span] QA 0
+[div] Call recording Conference call_250101_171114.m4a
+[span] completed
+[span] QA 20
+[div] Call recording +918485823280_251114_204226.m4a
+[span] completed
+[span] QA 20
+[div] Call recording +918485823280_251114_204226.m4a
+[span] completed
+[span] QA 0
+[div] NVIDIA NIM ready · meta/llama-3.1-8b-instruct
+[h2] Select or upload a call
+[p] Pipeline: ASR → Diarization → PII → Multi-agent analysis
+[button] Re-analyze
+[h3] Dynamic Waveform Viewer
+[h3] Agent Scorecard
+[h3] Sentiment Charts
+[h3] Interactive Transcript
+[h3] AI Agent Insights
+[h3] Interactive Call Copilot (RAG)
+[button] Ask

@@ -1,0 +1,50 @@
+<template>
+  <style>
+    @font-face { font-family: "Segoe UI"; src: url(assets/fonts/inter-400.woff2) format("woff2"); font-weight: 400; font-style: normal; }
+    @font-face { font-family: "Segoe UI"; src: url(assets/fonts/inter-600.woff2) format("woff2"); font-weight: 600; font-style: normal; }
+    @font-face { font-family: "Segoe UI"; src: url(assets/fonts/inter-700.woff2) format("woff2"); font-weight: 700; font-style: normal; }
+    #root { position: absolute; inset: 0; overflow: hidden; container-type: size; background: transparent; color: #E8E8EF; font-family: "Segoe UI", system-ui, sans-serif; }
+    .clip { position: absolute; inset: 0; }
+    #hook-bg { background: #1A1A26; }
+    #hook-ui { padding-left: 5cqw; }
+    #eyebrow { position: absolute; top: 6cqh; left: 5cqw; font-size: 0.8cqw; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #76B900; }
+    #accent-line { position: absolute; top: 8.4cqh; left: 5cqw; width: 3.1cqw; height: 4px; border-radius: 2px; background: #76B900; }
+    .l1, .l2 { position: absolute; left: 5cqw; color: #E8E8EF; }
+    .l1 { top: 30cqh; font-size: 4.2cqw; font-weight: 700; line-height: 1.08; letter-spacing: -0.02em; }
+    .l2 { top: 41.5cqh; font-size: 4.2cqw; font-weight: 700; line-height: 1.08; letter-spacing: -0.02em; }
+    .ch { display: inline-block; opacity: 0; }
+    .wd { display: inline-block; opacity: 0; }
+    .sp { display: inline-block; width: 0.32em; }
+    #qmark { display: inline-block; color: #76B900; }
+    #caret { position: absolute; display: inline-block; width: 0.09em; height: 0.9em; background: #76B900; margin-left: 0.12em; transform: translateY(0.08em); }
+    #sub { position: absolute; top: 53cqh; left: 5cqw; font-size: 1.05cqw; font-weight: 400; line-height: 1.6; color: #8B8BA3; opacity: 0; max-width: 46cqw; }
+  </style>
+  <div id="root" data-composition-id="01-hook" data-width="1920" data-height="1080" data-duration="5.5">
+    <div id="hook-bg" class="clip" data-start="0" data-duration="5.5" data-track-index="1"></div>
+    <div id="hook-ui" class="clip" data-start="0" data-duration="5.5" data-track-index="2">
+      <div id="eyebrow">Call Analysis</div>
+      <div id="accent-line"></div>
+      <div class="l1">
+        <span class="ch">W</span><span class="ch">h</span><span class="ch">a</span><span class="ch">t</span><span class="sp"></span><span class="ch">h</span><span class="ch">a</span><span class="ch">p</span><span class="ch">p</span><span class="ch">e</span><span class="ch">n</span><span class="ch">e</span><span class="ch">d</span>
+        <span id="caret"></span>
+      </div>
+      <div class="l2">
+        <span class="wd">on</span><span class="sp"></span><span class="wd">that</span><span class="sp"></span><span class="wd">call</span><span id="qmark">?</span>
+      </div>
+      <div id="sub">A raw recording hides the whole story.</div>
+    </div>
+  </div>
+  <script>
+    window.__timelines = window.__timelines || {};
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo("#eyebrow", { opacity: 0, y: -10 }, { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" }, 0.05);
+    tl.fromTo("#accent-line", { opacity: 0, scaleX: 0 }, { opacity: 1, scaleX: 1, duration: 0.45, ease: "power3.out" }, 0.15);
+    tl.fromTo(".l1 .ch", { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.18, stagger: 0.055, ease: "power2.out" }, 0.35);
+    tl.fromTo("#caret", { opacity: 1 }, { opacity: 0, duration: 0.22, repeat: 3, yoyo: true, ease: "power1.inOut" }, 0.5);
+    tl.to("#caret", { opacity: 0, duration: 0.15, ease: "power1.out" }, 1.55);
+    tl.fromTo(".l2 .wd", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.28, stagger: 0.22, ease: "power3.out" }, 1.7);
+    tl.fromTo("#qmark", { color: "#E8E8EF", scale: 0.6 }, { color: "#76B900", scale: 1, duration: 0.3, ease: "power2.out" }, 2.55);
+    tl.fromTo("#sub", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 3.1);
+    window.__timelines["01-hook"] = tl;
+  </script>
+</template>

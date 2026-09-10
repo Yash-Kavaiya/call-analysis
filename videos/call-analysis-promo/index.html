@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js" integrity="sha384-sG0Hv1tP1lZCk9KQmrIbY/XNwi+OY84GQqhMscbnsoBFqAz8KNCil1kvfL3Hbbk2" crossorigin="anonymous"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #000;
+      }
+      #root {
+        position: relative;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #1A1A26;
+      }
+      .scene {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="62"
+      data-width="1920"
+      data-height="1080"
+    >
+      <div
+        id="el-01-hook"
+        class="scene"
+        data-composition-id="01-hook"
+        data-composition-src="compositions/frames/01-hook.html"
+        data-start="0"
+        data-duration="5.5"
+        data-track-index="0"
+      ></div>
+
+      <div
+        id="el-02-intro"
+        class="scene"
+        data-composition-id="02-intro"
+        data-composition-src="compositions/frames/02-intro.html"
+        data-start="5"
+        data-duration="9"
+        data-track-index="1"
+      ></div>
+
+      <div
+        id="el-03-pipeline"
+        class="scene"
+        data-composition-id="03-pipeline"
+        data-composition-src="compositions/frames/03-pipeline.html"
+        data-start="14"
+        data-duration="11.5"
+        data-track-index="0"
+      ></div>
+
+      <div
+        id="el-04-transcript"
+        class="scene"
+        data-composition-id="04-transcript"
+        data-composition-src="compositions/frames/04-transcript.html"
+        data-start="25"
+        data-duration="10"
+        data-track-index="1"
+      ></div>
+
+      <div
+        id="el-05-scorecards"
+        class="scene"
+        data-composition-id="05-scorecards"
+        data-composition-src="compositions/frames/05-scorecards.html"
+        data-start="35"
+        data-duration="10"
+        data-track-index="0"
+      ></div>
+
+      <div
+        id="el-06-copilot"
+        class="scene"
+        data-composition-id="06-copilot"
+        data-composition-src="compositions/frames/06-copilot.html"
+        data-start="45"
+        data-duration="11.5"
+        data-track-index="1"
+      ></div>
+
+      <div
+        id="el-07-cta"
+        class="scene"
+        data-composition-id="07-cta"
+        data-composition-src="compositions/frames/07-cta.html"
+        data-start="56"
+        data-duration="6"
+        data-track-index="0"
+      ></div>
+
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      window.__timelines["main"] = gsap.timeline({ paused: true });
+      // ── frame transitions (injected by transitions.mjs) ──
+      (function () { var tl = window.__timelines["main"];
+        tl.to("#el-01-hook", { opacity: 0, duration: 0.5, ease: "power2.inOut" }, 5);
+        tl.fromTo("#el-02-intro", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.inOut" }, 5);
+        tl.to("#el-03-pipeline", { opacity: 0, duration: 0.5, ease: "power2.inOut" }, 25);
+        tl.fromTo("#el-04-transcript", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.inOut" }, 25);
+        tl.to("#el-06-copilot", { opacity: 0, duration: 0.5, ease: "power2.inOut" }, 56);
+        tl.fromTo("#el-07-cta", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.inOut" }, 56);
+        tl.to({}, { duration: 62 }, 0); // full-span anchor — main.duration() == composition total (Studio master duration)
+      })();
+    </script>
+  </body>
+</html>

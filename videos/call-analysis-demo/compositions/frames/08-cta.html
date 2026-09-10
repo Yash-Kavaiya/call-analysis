@@ -1,0 +1,54 @@
+<template>
+  <style>
+    @font-face { font-family: "Segoe UI"; src: local("Segoe UI"); }
+    @font-face { font-family: "Consolas"; src: local("Consolas"); }
+    #root { position: absolute; inset: 0; background: transparent; color: #e8e8ef; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; }
+    .clip { position: absolute; }
+    .bg { position: absolute; inset: 0; background:
+      radial-gradient(ellipse 1500px 750px at 50% 42%, rgba(118,185,0,0.10), transparent 65%),
+      #0a0a0f; }
+    .stage { position: absolute; top: 0; left: 0; right: 0; height: 880px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 40px; text-align: center; }
+    .kicker { font-family: "Consolas", monospace; font-size: 25px; letter-spacing: 0.34em; text-transform: uppercase; color: #76b900; }
+    .title { font-size: 126px; font-weight: 900; letter-spacing: -0.03em; line-height: 0.98; color: #e8e8ef; }
+    .title .accent { color: #76b900; }
+    .title .word { display: inline-block; }
+    .facts { display: flex; gap: 30px; align-items: center; flex-wrap: wrap; justify-content: center; }
+    .fact { font-family: "Consolas", monospace; font-size: 21px; letter-spacing: 0.14em; text-transform: uppercase; color: #d0d0db; opacity: 0; }
+    .fact .dot { color: #76b900; margin: 0 16px; }
+    .url { font-family: "Consolas", monospace; font-size: 32px; letter-spacing: 0.1em; color: #89d100; border: 1px solid #5a8f00; background: #1e2a1a; border-radius: 12px; padding: 20px 46px; opacity: 0; box-shadow: 0 0 60px rgba(118,185,0,0.18); }
+    .glow { position: absolute; left: 50%; top: 52%; transform: translate(-50%, -50%); width: 1200px; height: 640px; background: radial-gradient(ellipse, rgba(118,185,0,0.18), transparent 70%); opacity: 0; }
+  </style>
+  <div id="root" data-composition-id="08-cta" data-duration="10" data-width="1920" data-height="1080">
+    <div class="clip bg" data-start="0" data-duration="10" data-track-index="1"></div>
+    <div class="glow" id="g8"></div>
+    <div class="clip stage" data-start="0" data-duration="10" data-track-index="2">
+      <div class="kicker" id="k8">OPEN SOURCE</div>
+      <div class="title" id="t8"><span class="word">call</span> <span class="word accent">analysis</span></div>
+      <div class="facts">
+        <span class="fact" id="ft1">BUILT ON NVIDIA'S FREE AI STACK</span>
+        <span class="fact" id="ft2"><span class="dot">·</span>SELF-HOSTED</span>
+      </div>
+      <div class="url" id="u1">build.nvidia.com</div>
+    </div>
+  </div>
+  <script>
+    window.__timelines = window.__timelines || {};
+    const tl = gsap.timeline({ paused: true });
+    const tw = document.querySelectorAll("#t8 .word");
+    // Scene 1 — kicker
+    tl.fromTo("#k8", { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 0.15);
+    // Scene 2 — wordmark
+    tw.forEach((w, i) => {
+      tl.fromTo(w, { opacity: 0, scale: 0.9, y: 24 }, { opacity: 1, scale: 1, y: 0, duration: 0.55, ease: "power3.out" }, 1.5 + i * 0.18);
+    });
+    tl.to("#g8", { opacity: 1, duration: 1.0, ease: "power2.out" }, 2.0);
+    // Scene 3 — facts row
+    tl.fromTo("#ft1", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" }, 3.6);
+    tl.fromTo("#ft2", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" }, 4.2);
+    // Scene 4 — URL lands (final frame: exit settle at the tail)
+    tl.fromTo("#u1", { opacity: 0, scale: 0.88 }, { opacity: 1, scale: 1, duration: 0.6, ease: "power3.out" }, 6.2);
+    // final-frame fade tail
+    tl.to("#root", { opacity: 0, duration: 0.5, ease: "power1.in" }, 9.5);
+    window.__timelines["08-cta"] = tl;
+  </script>
+</template>

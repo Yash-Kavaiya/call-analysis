@@ -1,0 +1,45 @@
+<template>
+  <style>
+    @font-face { font-family: "Segoe UI"; src: local("Segoe UI"); }
+    @font-face { font-family: "Consolas"; src: local("Consolas"); }
+    #root { position: absolute; inset: 0; background: transparent; color: #e8e8ef; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; }
+    .clip { position: absolute; }
+    .bg { position: absolute; inset: 0; background:
+      radial-gradient(ellipse 1300px 650px at 50% 30%, rgba(118,185,0,0.06), transparent 60%),
+      #0a0a0f; }
+    .stage { position: absolute; top: 0; left: 0; right: 0; height: 880px; display: flex; align-items: center; justify-content: center; }
+    .screen { position: relative; width: 1240px; border: 1px solid #2a2a3d; background: #16161f; border-radius: 14px; overflow: hidden; box-shadow: 0 30px 80px rgba(0,0,0,0.5); }
+    .screen .dh { height: 52px; border-bottom: 1px solid #2a2a3d; display: flex; align-items: center; padding: 0 22px; gap: 10px; }
+    .screen .dot { width: 13px; height: 13px; border-radius: 50%; background: #2a2a3d; }
+    .screen img { display: block; width: 100%; height: auto; }
+    .file-chip { position: absolute; left: 50%; bottom: 120px; transform: translateX(-50%); width: 560px; height: 66px; border: 1px solid #5a8f00; background: #1e2a1a; border-radius: 10px; display: flex; align-items: center; padding: 0 22px; gap: 16px; box-shadow: 0 16px 40px rgba(0,0,0,0.45); }
+    .file-chip .icon { width: 32px; height: 32px; border-radius: 8px; background: #76b900; flex: 0 0 auto; }
+    .file-chip .name { font-size: 24px; color: #e8e8ef; }
+    .file-chip .status { margin-left: auto; font-family: "Consolas", monospace; font-size: 16px; letter-spacing: 0.12em; text-transform: uppercase; color: #89d100; }
+    .badge { position: absolute; right: 318px; top: 26px; font-family: "Consolas", monospace; font-size: 17px; letter-spacing: 0.12em; text-transform: uppercase; color: #0a0a0f; background: #76b900; border-radius: 8px; padding: 12px 22px; font-weight: 700; box-shadow: 0 10px 30px rgba(118,185,0,0.35); }
+  </style>
+  <div id="root" data-composition-id="03-ingest" data-duration="12.5" data-width="1920" data-height="1080">
+    <div class="clip bg" data-start="0" data-duration="12.5" data-track-index="1"></div>
+    <div class="clip stage" data-start="0" data-duration="12.5" data-track-index="2">
+      <div class="screen" id="sc1">
+        <div class="dh"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+        <img src="assets/ingest-dark.png" alt="ingest upload screen">
+      </div>
+      <div class="badge" id="bd1">GPU / CPU</div>
+      <div class="file-chip" id="fc1"><div class="icon"></div><div class="name">support-call-2411.m4a</div><div class="status">TRANSCRIBING…</div></div>
+    </div>
+  </div>
+  <script>
+    window.__timelines = window.__timelines || {};
+    const tl = gsap.timeline({ paused: true });
+    // Scene 1 — screen enters
+    tl.fromTo("#sc1", { opacity: 0, y: 50, scale: 0.96 }, { opacity: 1, y: 0, scale: 1, duration: 0.7, ease: "power3.out" }, 0.2);
+    // Scene 2 — file chip drops on the upload zone
+    tl.fromTo("#fc1", { opacity: 0, y: -40 }, { opacity: 1, y: 0, duration: 0.55, ease: "power3.out" }, 2.0);
+    tl.to("#fc1 .status", { opacity: 0.55, duration: 0.4, ease: "sine.inOut" }, 3.2);
+    tl.to("#fc1 .status", { opacity: 1, duration: 0.4, ease: "sine.inOut" }, 3.8);
+    // Scene 3 — GPU/CPU badge pops
+    tl.fromTo("#bd1", { opacity: 0, scale: 0.7 }, { opacity: 1, scale: 1, duration: 0.5, ease: "power3.out" }, 5.0);
+    window.__timelines["03-ingest"] = tl;
+  </script>
+</template>

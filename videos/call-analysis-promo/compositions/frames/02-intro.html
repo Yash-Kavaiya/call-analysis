@@ -1,0 +1,46 @@
+<template>
+  <style>
+    @font-face { font-family: "Segoe UI"; src: url(assets/fonts/inter-400.woff2) format("woff2"); font-weight: 400; font-style: normal; }
+    @font-face { font-family: "Segoe UI"; src: url(assets/fonts/inter-600.woff2) format("woff2"); font-weight: 600; font-style: normal; }
+    @font-face { font-family: "Segoe UI"; src: url(assets/fonts/inter-700.woff2) format("woff2"); font-weight: 700; font-style: normal; }
+    #root { position: absolute; inset: 0; overflow: hidden; container-type: size; background: transparent; color: #E8E8EF; font-family: "Segoe UI", system-ui, sans-serif; }
+    .clip { position: absolute; inset: 0; }
+    #intro-bg { background: #0A0A0F; }
+    #plate-wrap { position: absolute; inset: 0; overflow: hidden; }
+    #plate { position: absolute; top: 0; left: 0; width: 1920px; height: 1337px; object-fit: cover; }
+    #scrim { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(10,10,15,0.92) 0%, rgba(10,10,15,0.72) 26%, rgba(10,10,15,0.35) 52%, rgba(10,10,15,0.22) 72%, rgba(10,10,15,0.35) 100%); }
+    #dim { position: absolute; inset: 0; background: rgba(10,10,15,0.25); }
+    #card { position: absolute; top: 21cqh; left: 5cqw; width: 46cqw; padding: 2.6cqw 2.8cqw 3cqw; background: rgba(118,185,0,0.04); border: 1.5px solid rgba(118,185,0,0.2); border-radius: 14px; }
+    #eyebrow { font-size: 0.8cqw; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #76B900; }
+    #headline { margin-top: 1.6cqw; font-size: 2.4cqw; font-weight: 600; line-height: 1.14; letter-spacing: -0.02em; color: #E8E8EF; }
+    #body { margin-top: 1.8cqw; font-size: 1.0cqw; font-weight: 400; line-height: 1.6; color: #8B8BA3; max-width: 40cqw; }
+    #tag-pill { position: absolute; top: 5cqh; right: 5cqw; padding: 0.7cqw 1.6cqw; background: rgba(118,185,0,0.08); border: 1px solid rgba(118,185,0,0.25); border-radius: 100px; font-size: 0.72cqw; font-weight: 600; color: #76B900; letter-spacing: 0.04em; }
+  </style>
+  <div id="root" data-composition-id="02-intro" data-width="1920" data-height="1080" data-duration="9">
+    <div id="intro-bg" class="clip" data-start="0" data-duration="9" data-track-index="1"></div>
+    <div id="plate-wrap" class="clip" data-start="0" data-duration="9" data-track-index="2">
+      <img id="plate" src="assets/full-page.png" alt="" data-layout-allow-overflow />
+      <div id="dim"></div>
+      <div id="scrim"></div>
+      <div id="card">
+        <div id="eyebrow">Call Analysis</div>
+        <div id="headline">NVIDIA Contact Center Intelligence</div>
+        <div id="body">Drop in a recording — get the whole story back.</div>
+      </div>
+      <div id="tag-pill">Contact Center Intelligence</div>
+    </div>
+  </div>
+  <script>
+    window.__timelines = window.__timelines || {};
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo("#plate", { opacity: 0, scale: 0.95 }, { opacity: 1, scale: 1, duration: 1.5, ease: "power3.out" }, 0);
+    tl.fromTo("#dim", { opacity: 0 }, { opacity: 1, duration: 0.9, ease: "power2.out" }, 0.3);
+    tl.fromTo("#scrim", { opacity: 0 }, { opacity: 1, duration: 1.2, ease: "power2.out" }, 0.5);
+    tl.fromTo("#card", { opacity: 0, y: 22 }, { opacity: 1, y: 0, duration: 0.6, ease: "power3.out" }, 1.6);
+    tl.fromTo("#headline", { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.55, ease: "power3.out" }, 2.15);
+    tl.fromTo("#body", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 2.85);
+    tl.fromTo("#tag-pill", { opacity: 0, scale: 0.8 }, { opacity: 1, scale: 1, duration: 0.5, ease: "back.out(2)" }, 2.6);
+    tl.to("#plate", { scale: 1.015, duration: 4.5, ease: "power1.inOut" }, 4.0);
+    window.__timelines["02-intro"] = tl;
+  </script>
+</template>

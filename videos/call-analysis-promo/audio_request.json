@@ -1,0 +1,11 @@
+{
+  "provider": "auto",
+  "speed": 1,
+  "lines": [],
+  "bgm": {
+    "mode": "retrieve",
+    "query": "modern tech underscore — confident, driving, subtle",
+    "blob": "Every call, fully understood — a raw recording becomes a redacted transcript, scored analytics, and an AI copilot.",
+    "arc": "Demo Loop — question → intro → demo cycle 1 (ingest → pipeline) → demo cycle 2 (transcript → scoring → copilot) → CTA"
+  }
+}

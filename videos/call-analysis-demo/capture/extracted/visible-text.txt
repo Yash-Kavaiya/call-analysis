@@ -1,0 +1,7 @@
+Call Analysis — Contact Center Intelligence
+Ingest → ASR (Whisper) → multi-speaker diarization → PII scrub → multi-agent analysis → NVIDIA-themed dashboard
+QA Scorecard | Compliance & Risk | Sentiment & Emotion | Root Cause & Intent | CRM Action Items | Call Copilot (RAG)
+Upload .m4a .wav .mp3 .ogg .flac recordings
+faster-whisper with GPU→CPU fallback
+PII Detection & Redaction: emails, phones, credit cards, SSN, Aadhaar, account numbers
+Interactive Dashboard: real-time waveform, sentiment charts, scorecards, interactive transcript, RAG copilot

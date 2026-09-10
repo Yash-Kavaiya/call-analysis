@@ -1,0 +1,54 @@
+<template>
+  <style>
+    @font-face { font-family: "Segoe UI"; src: local("Segoe UI"); }
+    @font-face { font-family: "Consolas"; src: local("Consolas"); }
+    #root { position: absolute; inset: 0; background: transparent; color: #e8e8ef; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; }
+    .clip { position: absolute; }
+    .bg { position: absolute; inset: 0; background:
+      radial-gradient(ellipse 1400px 700px at 50% 34%, rgba(118,185,0,0.07), transparent 62%),
+      #0a0a0f; }
+    .stage { position: absolute; top: 0; left: 0; right: 0; height: 880px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 44px; }
+    .title { font-size: 68px; font-weight: 800; letter-spacing: -0.02em; text-align: center; line-height: 1.1; }
+    .title .accent { color: #76b900; }
+    .title .word { display: inline-block; }
+    .rule { width: 72px; height: 3px; background: #76b900; }
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; width: 1560px; }
+    .card { height: 218px; border: 1px solid #2a2a3d; background: #16161f; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; opacity: 0; }
+    .card .icon { width: 54px; height: 54px; border-radius: 12px; background: rgba(118,185,0,0.14); border: 1px solid #5a8f00; display: flex; align-items: center; justify-content: center; font-size: 24px; color: #89d100; }
+    .card .name { font-size: 30px; font-weight: 600; color: #e8e8ef; }
+    .card .sub { font-family: "Consolas", monospace; font-size: 15px; letter-spacing: 0.12em; text-transform: uppercase; color: #8b8ba3; }
+  </style>
+  <div id="root" data-composition-id="05-agents" data-duration="15.4" data-width="1920" data-height="1080">
+    <div class="clip bg" data-start="0" data-duration="15.4" data-track-index="1"></div>
+    <div class="clip stage" data-start="0" data-duration="15.4" data-track-index="2">
+      <div class="title" id="t5">
+        <span class="word">six</span> <span class="word accent">nvidia</span> <span class="word accent">ai</span> <span class="word accent">agents</span><br>
+        <span class="word">go</span> <span class="word">to</span> <span class="word">work</span>
+      </div>
+      <div class="rule" id="r5"></div>
+      <div class="grid">
+        <div class="card" id="c1"><div class="icon">◉</div><div class="name">QA Scorecard</div><div class="sub">0–100 · coaching</div></div>
+        <div class="card" id="c2"><div class="icon">△</div><div class="name">Compliance</div><div class="sub">policy &amp; risk flags</div></div>
+        <div class="card" id="c3"><div class="icon">♡</div><div class="name">Sentiment</div><div class="sub">emotion timeline</div></div>
+        <div class="card" id="c4"><div class="icon">◎</div><div class="name">Root Cause</div><div class="sub">intent + resolution</div></div>
+        <div class="card" id="c5"><div class="icon">☑</div><div class="name">CRM Actions</div><div class="sub">follow-ups</div></div>
+        <div class="card" id="c6"><div class="icon">✦</div><div class="name">Copilot</div><div class="sub">RAG · ask anything</div></div>
+      </div>
+    </div>
+  </div>
+  <script>
+    window.__timelines = window.__timelines || {};
+    const tl = gsap.timeline({ paused: true });
+    const tw = document.querySelectorAll("#t5 .word");
+    tw.forEach((w, i) => {
+      tl.fromTo(w, { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.35, ease: "power3.out" }, 0.15 + i * 0.1);
+    });
+    tl.fromTo("#r5", { scaleX: 0, opacity: 0 }, { scaleX: 1, opacity: 1, duration: 0.45, ease: "power3.out" }, 0.9);
+    // Scene 2 — cards cascade into grid on VO cues
+    const cards = ["#c1", "#c2", "#c3", "#c4", "#c5", "#c6"];
+    cards.forEach((c, i) => {
+      tl.fromTo(c, { opacity: 0, scale: 0.88, y: 18 }, { opacity: 1, scale: 1, y: 0, duration: 0.45, ease: "power3.out" }, 1.9 + i * 1.05);
+    });
+    window.__timelines["05-agents"] = tl;
+  </script>
+</template>

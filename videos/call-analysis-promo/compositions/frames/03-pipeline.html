@@ -1,0 +1,90 @@
+<template>
+  <style>
+    @font-face { font-family: "Segoe UI"; src: url(assets/fonts/inter-400.woff2) format("woff2"); font-weight: 400; font-style: normal; }
+    @font-face { font-family: "Segoe UI"; src: url(assets/fonts/inter-600.woff2) format("woff2"); font-weight: 600; font-style: normal; }
+    @font-face { font-family: "Segoe UI"; src: url(assets/fonts/inter-700.woff2) format("woff2"); font-weight: 700; font-style: normal; }
+    #root { position: absolute; inset: 0; overflow: hidden; container-type: size; background: transparent; color: #E8E8EF; font-family: "Segoe UI", system-ui, sans-serif; }
+    .clip { position: absolute; inset: 0; }
+    #pipe-bg { background: #0A0A0F; }
+    #plate-wrap { position: absolute; inset: 0; overflow: hidden; }
+    #plate { position: absolute; top: 16px; left: 211px; width: 1498px; height: 1043px; object-fit: cover; }
+    #dim { position: absolute; inset: 0; background: rgba(10,10,15,0.45); }
+    #callout { position: absolute; top: 7cqh; left: 5cqw; }
+    #callout-line1 { font-size: 1.25cqw; font-weight: 600; color: #E8E8EF; }
+    #callout-line2 { margin-top: 0.9cqw; font-size: 1.05cqw; font-weight: 400; color: #8B8BA3; opacity: 0; }
+    .ring { position: absolute; left: 139px; top: 142px; width: 220px; height: 220px; border: 3px solid rgba(118,185,0,0.85); border-radius: 50%; opacity: 0; }
+    #strip-wrap { position: absolute; left: 5cqw; right: 5cqw; top: 68cqh; }
+    #strip { position: relative; background: rgba(10,10,15,0.78); border: 1.5px solid rgba(118,185,0,0.22); border-radius: 14px; padding: 1.6cqw 1.8cqw 1.9cqw; overflow: hidden; }
+    #progress-track { position: absolute; top: 0; left: 0; right: 0; height: 3px; background: rgba(118,185,0,0.15); }
+    #progress-fill { position: absolute; top: 0; left: 0; height: 3px; width: 100%; background: #76B900; transform-origin: left center; }
+    #pills { display: flex; gap: 1.2cqw; margin-top: 1.2cqw; }
+    .pill { position: relative; flex: 1; background: rgba(118,185,0,0.04); border: 1.5px solid rgba(118,185,0,0.2); border-radius: 12px; padding: 1.1cqw 1cqw; min-height: 4.6cqw; }
+    .pill-num { font-size: 0.72cqw; font-weight: 700; color: #76B900; opacity: 0.6; }
+    .pill-label { margin-top: 0.5cqw; font-size: 1.0cqw; font-weight: 600; color: #E8E8EF; }
+    .pill-status { margin-top: 0.5cqw; font-size: 0.78cqw; color: #8B8BA3; }
+    .spinner { display: inline-block; width: 0.9cqw; height: 0.9cqw; border: 2px solid rgba(118,185,0,0.25); border-top-color: #76B900; border-radius: 50%; vertical-align: -0.12cqw; margin-right: 0.5cqw; }
+    .check { position: absolute; right: 1.1cqw; top: 1.1cqw; width: 1.6cqw; height: 1.6cqw; border-radius: 50%; background: #76B900; opacity: 0; }
+    .check svg { display: block; width: 100%; height: 100%; }
+    .check path { stroke: #0A0A0F; stroke-width: 3; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+    .act .pill-num, .act .pill-label { color: #76B900; }
+    .act { border-color: rgba(118,185,0,0.6); }
+    .done .pill-status { color: #76B900; }
+  </style>
+  <div id="root" data-composition-id="03-pipeline" data-width="1920" data-height="1080" data-duration="11.5">
+    <div id="pipe-bg" class="clip" data-start="0" data-duration="11.5" data-track-index="1"></div>
+    <div id="plate-wrap" class="clip" data-start="0" data-duration="11.5" data-track-index="2">
+      <img id="plate" src="assets/full-page.png" alt="" data-layout-allow-overflow />
+      <div id="dim"></div>
+      <div class="ring" id="ring1"></div>
+      <div class="ring" id="ring2"></div>
+      <div id="callout">
+        <div id="callout-line1">One upload. Five stages. Zero manual work.</div>
+        <div id="callout-line2">The machine does the work while you watch.</div>
+      </div>
+      <div id="strip-wrap">
+        <div id="strip">
+          <div id="progress-track"><div id="progress-fill"></div></div>
+          <div id="pills">
+            <div class="pill" id="step1"><div class="pill-num">01</div><div class="pill-label">ASR</div><div class="pill-status" id="st1"><span class="spinner"></span><span class="st-text"></span></div><div class="check"><svg viewBox="0 0 24 24"><path d="M4 12.5 L10 18.5 L20 6"/></svg></div></div>
+            <div class="pill" id="step2"><div class="pill-num">02</div><div class="pill-label">Diarization</div><div class="pill-status" id="st2"><span class="spinner"></span><span class="st-text"></span></div><div class="check"><svg viewBox="0 0 24 24"><path d="M4 12.5 L10 18.5 L20 6"/></svg></div></div>
+            <div class="pill" id="step3"><div class="pill-num">03</div><div class="pill-label">PII Redaction</div><div class="pill-status" id="st3"><span class="spinner"></span><span class="st-text"></span></div><div class="check"><svg viewBox="0 0 24 24"><path d="M4 12.5 L10 18.5 L20 6"/></svg></div></div>
+            <div class="pill" id="step4"><div class="pill-num">04</div><div class="pill-label">Multi-Agent Analysis</div><div class="pill-status" id="st4"><span class="spinner"></span><span class="st-text"></span></div><div class="check"><svg viewBox="0 0 24 24"><path d="M4 12.5 L10 18.5 L20 6"/></svg></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    window.__timelines = window.__timelines || {};
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo("#plate", { opacity: 0, scale: 0.97 }, { opacity: 1, scale: 1, duration: 0.7, ease: "power3.out" }, 0);
+    tl.fromTo("#dim", { opacity: 0 }, { opacity: 1, duration: 0.6, ease: "power2.out" }, 0.15);
+    tl.fromTo("#callout", { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 0.55);
+    tl.fromTo("#ring1", { opacity: 0.55, scale: 0.5 }, { opacity: 0, scale: 1.35, duration: 1.0, ease: "power2.out" }, 0.9);
+    tl.fromTo("#ring2", { opacity: 0.5, scale: 0.5 }, { opacity: 0, scale: 1.35, duration: 1.0, ease: "power2.out" }, 1.35);
+    tl.fromTo("#strip-wrap", { opacity: 0, y: 34 }, { opacity: 1, y: 0, duration: 0.6, ease: "power3.out" }, 2.0);
+    const steps = [
+      { el: "#step1", st: "#st1", num: "#step1 .pill-num", t: 2.0 },
+      { el: "#step2", st: "#st2", num: "#step2 .pill-num", t: 3.6 },
+      { el: "#step3", st: "#st3", num: "#step3 .pill-num", t: 5.2 },
+      { el: "#step4", st: "#st4", num: "#step4 .pill-num", t: 6.8 },
+    ];
+    const prog = [ { t: 2.0, s: 0 }, { t: 2.9, s: 0.25 }, { t: 4.5, s: 0.5 }, { t: 6.1, s: 0.75 }, { t: 7.7, s: 1 } ];
+    tl.set("#progress-fill", { scaleX: 0 }, 2.0);
+    for (let i = 1; i < prog.length; i++) {
+      tl.to("#progress-fill", { scaleX: prog[i].s, duration: prog[i].t - prog[i - 1].t, ease: "power1.inOut" }, prog[i - 1].t);
+    }
+    for (const s of steps) {
+      tl.to(s.el, { borderColor: "rgba(118,185,0,0.6)", boxShadow: "0 0 0 6px rgba(118,185,0,0.10)", duration: 0.9, yoyo: true, repeat: 1, ease: "power1.inOut" }, s.t);
+      tl.fromTo(s.el + " .spinner", { rotation: 0 }, { rotation: 360, duration: 0.9, ease: "power1.inOut" }, s.t);
+      tl.fromTo(s.st + " .st-text", { opacity: 0 }, { opacity: 1, duration: 0.2 }, s.t);
+      tl.set(s.st + " .st-text", { innerText: "Working…" }, s.t);
+      tl.set(s.st + " .st-text", { innerText: "Complete" }, s.t + 0.9);
+      tl.fromTo(s.st + " .st-text", { color: "#8B8BA3" }, { color: "#76B900", duration: 0.25 }, s.t + 0.9);
+      tl.fromTo(s.el + " .check", { opacity: 0, scale: 0.5 }, { opacity: 1, scale: 1, duration: 0.35, ease: "back.out(2.2)" }, s.t + 0.95);
+      tl.fromTo(s.el + " .check path", { strokeDasharray: 24, strokeDashoffset: 24 }, { strokeDashoffset: 0, duration: 0.3, ease: "power1.out" }, s.t + 1.0);
+    }
+    tl.fromTo("#callout-line2", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 8.6);
+    window.__timelines["03-pipeline"] = tl;
+  </script>
+</template>

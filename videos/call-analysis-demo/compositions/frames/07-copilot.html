@@ -1,0 +1,74 @@
+<template>
+  <style>
+    @font-face { font-family: "Segoe UI"; src: local("Segoe UI"); }
+    @font-face { font-family: "Consolas"; src: local("Consolas"); }
+    #root { position: absolute; inset: 0; background: transparent; color: #e8e8ef; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; }
+    .clip { position: absolute; }
+    .bg { position: absolute; inset: 0; background:
+      radial-gradient(ellipse 1300px 650px at 50% 34%, rgba(118,185,0,0.06), transparent 60%),
+      #0a0a0f; }
+    .stage { position: absolute; top: 0; left: 0; right: 0; height: 880px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 38px; }
+    .title { font-size: 60px; font-weight: 800; letter-spacing: -0.02em; text-align: center; }
+    .title .accent { color: #76b900; }
+    .title .word { display: inline-block; }
+    .chat { width: 1280px; border: 1px solid #2a2a3d; background: #16161f; border-radius: 14px; overflow: hidden; box-shadow: 0 30px 80px rgba(0,0,0,0.5); }
+    .q { display: flex; gap: 22px; padding: 30px 38px; border-bottom: 1px solid #2a2a3d; align-items: flex-start; }
+    .q .who { flex: 0 0 auto; width: 130px; font-family: "Consolas", monospace; font-size: 15px; letter-spacing: 0.12em; text-transform: uppercase; color: #8b8ba3; padding-top: 10px; }
+    .q .text { flex: 1; font-size: 30px; color: #e8e8ef; min-height: 44px; }
+    .q .caret { display: inline-block; width: 3px; height: 30px; background: #76b900; vertical-align: middle; margin-left: 6px; }
+    .a { display: flex; gap: 22px; padding: 30px 38px; align-items: flex-start; }
+    .a .who { flex: 0 0 auto; width: 130px; font-family: "Consolas", monospace; font-size: 15px; letter-spacing: 0.12em; text-transform: uppercase; color: #76b900; padding-top: 8px; }
+    .a .body { flex: 1; display: flex; flex-direction: column; gap: 18px; }
+    .a .answer { font-size: 27px; color: #e8e8ef; line-height: 1.5; min-height: 60px; }
+    .a .answer .word { display: inline-block; }
+    .cite { font-family: "Consolas", monospace; font-size: 15px; letter-spacing: 0.1em; text-transform: uppercase; color: #89d100; opacity: 0; }
+  </style>
+  <div id="root" data-composition-id="07-copilot" data-duration="10.5" data-width="1920" data-height="1080">
+    <div class="clip bg" data-start="0" data-duration="10.5" data-track-index="1"></div>
+    <div class="clip stage" data-start="0" data-duration="10.5" data-track-index="2">
+      <div class="title" id="t7">
+        <span class="word">ask</span> <span class="word">the</span> <span class="word">call</span> <span class="word accent">anything</span>
+      </div>
+      <div class="chat" id="ch1">
+        <div class="q">
+          <div class="who">SUPERVISOR</div>
+          <div class="text"><span id="q1"></span><span class="caret" id="cr1"></span></div>
+        </div>
+        <div class="a">
+          <div class="who">COPILOT</div>
+          <div class="body">
+            <div class="answer" id="a1"><span class="word">The</span> <span class="word">customer</span> <span class="word">called</span> <span class="word">about</span> <span class="word">a</span> <span class="word">failed</span> <span class="word">payment</span> <span class="word">and</span> <span class="word">wanted</span> <span class="word">a</span> <span class="word">refund</span> <span class="word">credited</span> <span class="word">today.</span></div>
+            <div class="cite" id="ct1">GROUNDED IN TRANSCRIPT · 00:41–02:12</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    window.__timelines = window.__timelines || {};
+    const tl = gsap.timeline({ paused: true });
+    const tw = document.querySelectorAll("#t7 .word");
+    tw.forEach((w, i) => {
+      tl.fromTo(w, { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.35, ease: "power3.out" }, 0.15 + i * 0.12);
+    });
+    tl.fromTo("#ch1", { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.7, ease: "power3.out" }, 0.8);
+    // Scene 1 — question types with caret
+    const qText = "Why did this customer call today?";
+    const qEl = document.getElementById("q1");
+    const caret = document.getElementById("cr1");
+    tl.call(() => { qEl.textContent = ""; }, null, 1.0);
+    for (let i = 0; i < qText.length; i++) {
+      tl.call((ch) => { qEl.textContent += ch; }, [qText[i]], 1.0 + i * 0.035);
+    }
+    tl.to(caret, { opacity: 0, duration: 0.1 }, 2.4);
+    tl.to(caret, { opacity: 1, duration: 0.1 }, 2.55);
+    tl.to(caret, { opacity: 0, duration: 0.1 }, 2.7);
+    // Scene 2 — answer streams word by word
+    const words = document.querySelectorAll("#a1 .word");
+    words.forEach((w, i) => {
+      tl.fromTo(w, { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.22, ease: "power2.out" }, 2.9 + i * 0.14);
+    });
+    tl.fromTo("#ct1", { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" }, 5.0);
+    window.__timelines["07-copilot"] = tl;
+  </script>
+</template>
