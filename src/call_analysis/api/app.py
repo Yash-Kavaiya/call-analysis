@@ -22,7 +22,7 @@ from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 
-from call_analysis.config import get_settings, load_nvidia_config
+from call_analysis.config import NVidiaSettings, get_settings, load_nvidia_config
 from call_analysis.logging_config import LoggingMiddleware, setup_logging
 from call_analysis.models import CallRecord, JobStatus
 from call_analysis.schemas import (
@@ -273,7 +273,11 @@ async def system_shutdown() -> dict[str, str]:
 
 @app.get("/api/health", response_model=HealthResponse, tags=["Health"])
 async def health(request: Request) -> HealthResponse:
-    nvidia_key_ok = settings.nvidia.is_configured
+    # Read NVIDIA settings on each probe, including a project .env. The
+    # process-wide Settings object is cached at import, so a key provided
+    # after startup would otherwise stay invisible.
+    nvidia = NVidiaSettings(_env_file=".env", _env_file_encoding="utf-8")
+    nvidia_key_ok = nvidia.is_configured
 
     db_ok = False
     redis_ok = False
@@ -295,8 +299,8 @@ async def health(request: Request) -> HealthResponse:
     return HealthResponse(
         status="ok",
         nvidia_key_configured=nvidia_key_ok,
-        model=settings.nvidia.model if nvidia_key_ok else None,
-        base_url=settings.nvidia.base_url if nvidia_key_ok else None,
+        model=nvidia.model if nvidia_key_ok else None,
+        base_url=nvidia.base_url if nvidia_key_ok else None,
         version=settings.app_version,
         environment=settings.environment,
         database_connected=db_ok,
