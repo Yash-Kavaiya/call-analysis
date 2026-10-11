@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: Python lint and tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        # tests/test_e2e.py runs live Whisper when ffmpeg is on PATH and
+        # currently fails: the synthetic tone produces an empty transcript.
+        # Leave ffmpeg uninstalled so that test keeps its own skip.
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      - name: Ruff
+        run: ruff check src tests
+
+      - name: Compile sources
+        run: python -m compileall -q src tests
+
+      - name: Pytest
+        run: python -m pytest tests/
+
+  desktop:
+    name: Electron syntax check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: electron/package-lock.json
+
+      - name: Install and syntax-check the shell
+        working-directory: electron
+        run: |
+          npm ci
+          npm run check
+          node --check renderer/renderer.js
+
+  docker:
+    name: Docker image build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t call-analysis:ci .

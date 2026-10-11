@@ -1,0 +1,16 @@
+.git
+.github
+electron/node_modules
+**/__pycache__
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/*.pyc
+videos
+data
+dist
+build
+*.mp4
+.venv
+venv
+env

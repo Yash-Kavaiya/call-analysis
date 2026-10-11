@@ -4,6 +4,10 @@ End-to-end contact center platform on the **NVIDIA free AI stack** (hosted NIM v
 
 **Ingest → ASR (Whisper) → multi-speaker diarization → PII scrub → multi-agent analysis → NVIDIA-themed dashboard**
 
+## Status
+
+Call Analysis is actively maintained and is being shipped as a self-hosted Docker Compose stack (API, Celery worker and beat, PostgreSQL, Redis, OpenTelemetry Collector, Prometheus, and Grafana) and as a Windows desktop installer (an Electron shell plus an NSIS setup that bundles a PyInstaller backend). What works today is the local dashboard: upload a recording or import audio from a folder, a Hugging Face dataset, or a Kaggle dataset; ffmpeg converts it, faster-whisper transcribes it, a pause-based heuristic assigns speakers, and regular expressions redact common PII (email, phone, card, SSN, Aadhaar, and account numbers). With an NVIDIA API key, six NIM agents produce a QA scorecard, compliance flags, sentiment, root cause, CRM follow-ups, and a call copilot. Calls are stored as JSON files and analysis runs in-process on the API. PostgreSQL models, Alembic migrations, JWT and API-key helpers, and Celery tasks ship in the repository and Compose starts those services, but the dashboard HTTP API does not mount the auth, organization, or webhook routes. There is no hosted demo yet.
+
 ## ��� Features
 
 ### Core Pipeline
