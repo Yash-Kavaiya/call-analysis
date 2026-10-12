@@ -6,6 +6,7 @@ import hashlib
 import secrets
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Annotated, Any
+from uuid import UUID
 
 from fastapi import Depends, HTTPException, Request, Security, status
 from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
@@ -107,9 +108,11 @@ def decode_token(token: str) -> TokenData | None:
             audience=settings.auth.jwt_audience,
             issuer=settings.auth.jwt_issuer,
         )
+        sub = payload.get("sub")
+        org = payload.get("org_id")
         return TokenData(
-            user_id=payload.get("sub"),
-            organization_id=payload.get("org_id"),
+            user_id=UUID(str(sub)) if sub else None,
+            organization_id=UUID(str(org)) if org else None,
             scopes=payload.get("scopes", []),
             exp=payload.get("exp"),
         )
@@ -296,8 +299,4 @@ def require_role(*allowed_roles: UserRole) -> Any:
 # Convenience dependencies
 require_admin = require_role(UserRole.ADMIN)
 require_analyst = require_role(UserRole.ADMIN, UserRole.ANALYST)
-require_viewer = require_role(
-    UserRead.model_construct(role="admin"),
-    UserRead.model_construct(role="analyst"),
-    UserRead.model_construct(role="viewer"),
-)
+require_viewer = require_role(UserRole.ADMIN, UserRole.ANALYST, UserRole.VIEWER)

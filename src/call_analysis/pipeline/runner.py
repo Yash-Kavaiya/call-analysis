@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 from call_analysis.agents.orchestrator import run_all_agents
 from call_analysis.audio.asr import transcribe_audio
@@ -83,7 +86,21 @@ def process_call(
         store.save(record)
 
         progress("Diarizing speakers", 0.55)
-        diarized = diarize_segments(asr.segments)
+        from call_analysis.config import get_settings
+
+        diar_settings = get_settings()
+        if (
+            diar_settings.features.advanced_diarization
+            and diar_settings.diarization.provider == "pyannote"
+        ):
+            logger.warning(
+                "FEATURE_ADVANCED_DIARIZATION with pyannote requires optional "
+                "pyannote.audio deps; falling back to heuristic diarization"
+            )
+        diarized = diarize_segments(
+            asr.segments,
+            max_speakers=diar_settings.diarization.max_speakers,
+        )
         record.segments = diarized
         if diarized:
             record.full_transcript = format_diarized_transcript(diarized)

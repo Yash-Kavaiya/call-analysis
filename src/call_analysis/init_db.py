@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import sys
 
 from call_analysis.config import get_settings
@@ -32,6 +33,10 @@ async def main() -> int:
         # Create tables
         await init_db()
         logger.info("Database initialized successfully")
+        if os.environ.get("BOOTSTRAP_ON_INIT", "").lower() in ("1", "true", "yes"):
+            from call_analysis.seed import seed_sync
+
+            seed_sync()
         return 0
     finally:
         from call_analysis.database import close_db

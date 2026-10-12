@@ -81,8 +81,7 @@ def process_call(self: Any, call_id: str, organization_id: str | None = None) ->
                     f"Call {call_id} not found"
                 )
 
-            # Create store with database-backed paths
-            store = CallStore()
+            store = CallStore(organization_id=str(call.organization_id))
 
             def progress_callback(msg: str, pct: float) -> None:
                 _track_job_status(call_id, "processing", pct, msg)
@@ -126,6 +125,11 @@ def process_call(self: Any, call_id: str, organization_id: str | None = None) ->
             )
             db.add(event)
             db.commit()
+
+        if result.status == "completed":
+            from call_analysis.webhook_events import notify_call_completed
+
+            notify_call_completed(str(call.organization_id), result)
 
         _track_job_status(
             call_id,

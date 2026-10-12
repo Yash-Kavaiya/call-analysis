@@ -6,6 +6,11 @@ const state = {
   detail: null,
   sentimentChart: null,
   pollTimer: null,
+  eventSource: null,
+  authToken: localStorage.getItem("ca_token") || "",
+  user: null,
+  authRequired: false,
+  callFilter: { status: "", search: "" },
 };
 
 const $ = (id) => document.getElementById(id);
@@ -17,7 +22,14 @@ function toast(msg) {
   setTimeout(() => el.classList.add("hidden"), 3200);
 }
 
+function authHeaders(extra = {}) {
+  const h = { ...extra };
+  if (state.authToken) h.Authorization = `Bearer ${state.authToken}`;
+  return h;
+}
+
 async function api(path, opts = {}) {
+  opts.headers = authHeaders(opts.headers || {});
   const res = await fetch(path, opts);
   if (!res.ok) {
     let detail = res.statusText;
@@ -60,8 +72,70 @@ async function loadAnalytics() {
   }
 }
 
+async function loadAuthConfig() {
+  try {
+    const h = await api("/api/health");
+    state.authRequired = h.environment === "production";
+  } catch (_) {
+    state.authRequired = false;
+  }
+  if (state.authToken) {
+    try {
+      state.user = await api("/api/auth/me");
+    } catch (_) {
+      state.authToken = "";
+      localStorage.removeItem("ca_token");
+      state.user = null;
+    }
+  }
+  applyRoleUi();
+}
+
+function applyRoleUi() {
+  const viewer = state.user && state.user.role === "viewer";
+  const panel = document.querySelector(".upload-panel");
+  if (panel) panel.style.display = viewer ? "none" : "";
+  const loginBtn = $("loginBtn");
+  if (loginBtn) {
+    loginBtn.textContent = state.user ? state.user.email : "Sign in";
+  }
+}
+
+async function loginPrompt() {
+  if (state.user) {
+    state.authToken = "";
+    state.user = null;
+    localStorage.removeItem("ca_token");
+    applyRoleUi();
+    toast("Signed out");
+    return;
+  }
+  const email = prompt("Email");
+  if (!email) return;
+  const password = prompt("Password");
+  if (!password) return;
+  try {
+    const data = await api("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    state.authToken = data.access_token;
+    localStorage.setItem("ca_token", state.authToken);
+    state.user = await api("/api/auth/me");
+    applyRoleUi();
+    toast("Signed in");
+  } catch (e) {
+    toast(`Login failed: ${e.message}`);
+  }
+}
+
 async function loadCalls() {
-  const data = await api("/api/calls");
+  const params = new URLSearchParams();
+  if (state.callFilter.status) params.set("status", state.callFilter.status);
+  if (state.callFilter.search) params.set("search", state.callFilter.search);
+  const qs = params.toString();
+  const data = await api(`/api/calls${qs ? `?${qs}` : ""}`);
   state.calls = data.calls || [];
   renderCallList();
   await loadAnalytics();
@@ -113,6 +187,37 @@ async function selectCall(id) {
   await loadDetail(id, true);
 }
 
+function closeEventStream() {
+  if (state.eventSource) {
+    state.eventSource.close();
+    state.eventSource = null;
+  }
+}
+
+function openEventStream(id) {
+  closeEventStream();
+  if (!window.EventSource) return;
+  let url = `/api/calls/${id}/events`;
+  if (state.authToken) url += `?access_token=${encodeURIComponent(state.authToken)}`;
+  state.eventSource = new EventSource(url);
+  state.eventSource.onmessage = (ev) => {
+    try {
+      const payload = JSON.parse(ev.data);
+      if (payload.done) {
+        closeEventStream();
+        loadDetail(id, false);
+        return;
+      }
+      if (state.detail && state.detail.id === id) {
+        state.detail.status = payload.status || state.detail.status;
+        state.detail.progress_pct = payload.progress ?? payload.progress_pct ?? state.detail.progress_pct;
+        state.detail.progress_message = payload.message || payload.progress_message || state.detail.progress_message;
+        renderProgress(state.detail);
+      }
+    } catch (_) {}
+  };
+}
+
 async function loadDetail(id, showLoading) {
   if (showLoading) {
     $("callTitle").textContent = "Loading…";
@@ -120,7 +225,30 @@ async function loadDetail(id, showLoading) {
   const d = await api(`/api/calls/${id}`);
   state.detail = d;
   renderDetail(d);
-  if (d.status === "processing" || d.status === "pending") schedulePoll();
+  if (d.status === "processing" || d.status === "pending") {
+    openEventStream(id);
+    schedulePoll();
+  } else {
+    closeEventStream();
+  }
+}
+
+async function exportCall() {
+  if (!state.selectedId) return;
+  try {
+    const res = await fetch(`/api/calls/${state.selectedId}/export?format=json`, {
+      headers: authHeaders(),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const blob = await res.blob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `${state.selectedId}.json`;
+    a.click();
+    toast("Export downloaded");
+  } catch (e) {
+    toast(e.message || "Export unavailable (enable FEATURE_EXPORT_ENABLED)");
+  }
 }
 
 function renderProgress(d) {
@@ -433,7 +561,11 @@ $("fileInput").onchange = async (ev) => {
     fd.append("file", file);
     try {
       toast(`Uploading ${file.name}…`);
-      const res = await fetch("/api/calls/upload?analyze=true", { method: "POST", body: fd });
+      const res = await fetch("/api/calls/upload?analyze=true", {
+        method: "POST",
+        body: fd,
+        headers: authHeaders(),
+      });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
       queued++;
@@ -528,6 +660,18 @@ window.addEventListener("resize", () => {
   if (state.detail) drawWaveform(state.detail.waveform_peaks || []);
 });
 
+$("loginBtn")?.addEventListener("click", () => loginPrompt().catch((e) => toast(e.message)));
+$("exportBtn")?.addEventListener("click", () => exportCall());
+$("filterStatus")?.addEventListener("change", (ev) => {
+  state.callFilter.status = ev.target.value;
+  loadCalls().catch((e) => toast(e.message));
+});
+$("filterSearch")?.addEventListener("input", (ev) => {
+  state.callFilter.search = ev.target.value.trim();
+  clearTimeout(state.searchTimer);
+  state.searchTimer = setTimeout(() => loadCalls().catch((e) => toast(e.message)), 350);
+});
+
 // boot
-loadHealth();
+loadAuthConfig().then(loadHealth);
 loadCalls().catch((e) => toast(e.message));

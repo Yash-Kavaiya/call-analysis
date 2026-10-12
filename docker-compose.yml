@@ -43,6 +43,10 @@ services:
     container_name: call-analysis-api
     environment:
       - ENVIRONMENT=production
+      - STORAGE_BACKEND=postgres
+      - FEATURE_MULTI_TENANT=true
+      - FEATURE_EXPORT_ENABLED=true
+      - FEATURE_WEBHOOK_ENABLED=true
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_USER=${DB_USER:-call_analysis}
@@ -89,6 +93,8 @@ services:
     command: call-worker
     environment:
       - ENVIRONMENT=production
+      - STORAGE_BACKEND=postgres
+      - FEATURE_WEBHOOK_ENABLED=true
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_USER=${DB_USER:-call_analysis}
