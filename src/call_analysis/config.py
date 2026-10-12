@@ -246,6 +246,8 @@ class StorageSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="STORAGE_", extra="ignore")
 
+    # file = JSON store only; postgres = DB + JSON mirror; auto = postgres when DB up
+    backend: Literal["file", "postgres", "auto"] = "auto"
     data_dir: Path = Path("data")
     uploads_dir: Path = Path("data/uploads")
     calls_dir: Path = Path("data/calls")

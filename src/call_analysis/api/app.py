@@ -1,30 +1,39 @@
-"""FastAPI app: file-store REST API + dashboard.
-
-The production Postgres/JWT/Celery layer is optional. Local and test
-runs use CallStore (JSON under data/) and in-process background jobs so
-the dashboard works without Docker, PostgreSQL, or Redis.
-"""
+"""FastAPI app: REST API + dashboard (file store or PostgreSQL + Celery)."""
 
 from __future__ import annotations
 
 import asyncio
+import csv
+import io
+import json
 import logging
 import os
 import sys
 import uuid
-from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 import httpx
-from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 
+from call_analysis.analytics_service import get_analytics
+from call_analysis.api.deps import analyst_for_writes, get_optional_user, get_repo
+from call_analysis.api.routes import api_keys, auth, organizations, users, webhooks
 from call_analysis.config import NVidiaSettings, get_settings, load_nvidia_config
+from call_analysis.jobs import enqueue_analysis, recover_interrupted_jobs as _recover_jobs
 from call_analysis.logging_config import LoggingMiddleware, setup_logging
 from call_analysis.models import CallRecord, JobStatus
+from call_analysis.prometheus_metrics import metrics_response, prometheus_middleware
+from call_analysis.rate_limit_middleware import rate_limit_middleware
+from call_analysis.repository import (
+    CallRepository,
+    FileCallRepository,
+    get_call_repository,
+    set_call_repository,
+)
 from call_analysis.schemas import (
     AnalyticsSummary,
     CopilotRequest,
@@ -35,6 +44,7 @@ from call_analysis.schemas import (
     ImportHubRequest,
     ImportLocalRequest,
     ImportResponse,
+    UserRead,
 )
 from call_analysis.storage import CallStore
 
@@ -42,118 +52,40 @@ settings = get_settings()
 setup_logging()
 logger = logging.getLogger(__name__)
 
-_store: CallStore | None = None
-_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="call-pipeline")
-
 
 def get_store() -> CallStore:
-    global _store
-    if _store is None:
-        _store = CallStore()
-    return _store
+    return get_call_repository().store
 
 
 def _in_pytest() -> bool:
     return bool(os.environ.get("PYTEST_CURRENT_TEST"))
 
 
-def _recovery_lock(store: CallStore) -> Any:
-    """Cross-platform exclusive lock so only one worker recovers on startup.
-
-    gunicorn may start several uvicorn workers against the same JSON store; a
-    file lock prevents them from re-queuing the same pending calls and tearing
-    each other's writes.
-    """
-    import contextlib
-
-    lock_path = store.data_dir / ".recovery.lock"
-    try:
-        # Keep the handle open for the duration of the lock (context manager
-        # would release it, defeating the lock) — intentional.
-        fh = open(lock_path, "a+b")  # noqa: SIM115 — lock must stay held
-        if fh.tell() == 0:
-            fh.write(b"0")  # msvcrt.locking needs a byte to lock
-            fh.flush()
-
-        if os.name == "nt":
-            import msvcrt
-
-            fh.seek(0)
-            msvcrt.locking(fh.fileno(), msvcrt.LK_NBLCK, 1)
-        else:
-            import fcntl
-
-            fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-
-        @contextlib.contextmanager
-        def _release() -> Any:
-            try:
-                yield
-            finally:
-                try:
-                    if os.name == "nt":
-                        import msvcrt
-
-                        fh.seek(0)
-                        msvcrt.locking(fh.fileno(), msvcrt.LK_UNLCK, 1)
-                    else:
-                        import fcntl
-
-                        fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
-                finally:
-                    fh.close()
-
-        return _release()
-    except OSError:
-        return contextlib.nullcontext()
-
-
 def recover_interrupted_jobs(
     store: CallStore,
     enqueue: Any,
 ) -> tuple[int, int]:
-    """
-    Resume work left over from a previous server session.
+    """Backward-compatible wrapper for tests (injects file store)."""
+    set_call_repository(FileCallRepository(store))
 
-    Records stuck in ``processing`` (e.g. the process was killed mid-run) are
-    reset back to ``pending`` so they can be analyzed again; every ``pending``
-    record is then re-queued via ``enqueue(call_id)``.
+    def _enqueue(call_id: str, org_id: Any = None) -> None:
+        enqueue(call_id)
 
-    Only one worker process may run recovery at a time (file lock), so a
-    multi-worker production deploy cannot double-process the same calls.
-
-    Returns ``(reset_count, enqueued_count)`` for diagnostics/tests.
-    """
     reset = 0
     enqueued = 0
-    with _recovery_lock(store):
-        for rec in store.list_calls():
-            if rec.status == JobStatus.PROCESSING.value:
-                rec.status = JobStatus.PENDING.value
-                rec.progress_pct = 0.0
-                rec.progress_message = "Interrupted by restart — re-queued"
-                store.save(rec)
-                reset += 1
-            if rec.status == JobStatus.PENDING.value:
-                enqueue(rec.id)
-                enqueued += 1
+    with store.data_dir.joinpath(".recovery.lock").open("a+b") as fh:
+        pass
+    for rec in store.list_calls():
+        if rec.status == JobStatus.PROCESSING.value:
+            rec.status = JobStatus.PENDING.value
+            rec.progress_pct = 0.0
+            rec.progress_message = "Interrupted by restart — re-queued"
+            store.save(rec)
+            reset += 1
+        if rec.status == JobStatus.PENDING.value:
+            _enqueue(rec.id)
+            enqueued += 1
     return reset, enqueued
-
-
-def _run_pipeline(call_id: str) -> None:
-    from call_analysis.pipeline.runner import process_call as run_pipeline
-
-    try:
-        run_pipeline(call_id, store=get_store())
-    except Exception:
-        logger.exception("Pipeline failed for %s", call_id)
-
-
-def enqueue_analysis(call_id: str) -> None:
-    """Queue analysis. No-op under pytest so unit tests stay deterministic."""
-    if _in_pytest() or settings.is_testing:
-        return
-    _executor.submit(_run_pipeline, call_id)
 
 
 def _list_item(rec: CallRecord) -> dict[str, Any]:
@@ -175,6 +107,10 @@ def _list_item(rec: CallRecord) -> dict[str, Any]:
     }
 
 
+def _org_id(user: UserRead | None) -> Any:
+    return user.organization_id if user else None
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> Any:
     logger.info(
@@ -189,8 +125,7 @@ async def lifespan(app: FastAPI) -> Any:
     except Exception:
         logger.warning("Telemetry not started", exc_info=True)
 
-    store = get_store()
-    reset, enqueued = recover_interrupted_jobs(store, enqueue_analysis)
+    reset, enqueued = _recover_jobs()
     if reset or enqueued:
         logger.info("Recovered interrupted jobs reset=%s enqueued=%s", reset, enqueued)
 
@@ -210,11 +145,16 @@ app = FastAPI(
     version=settings.app_version,
     description="NVIDIA-powered contact center analysis platform",
     lifespan=lifespan,
-    # Do not expose the OpenAPI surface in production deployments.
     docs_url=None if settings.is_production else "/docs",
     redoc_url=None if settings.is_production else "/redoc",
     openapi_url=None if settings.is_production else "/openapi.json",
 )
+
+app.include_router(auth.router)
+app.include_router(organizations.router)
+app.include_router(users.router)
+app.include_router(api_keys.router)
+app.include_router(webhooks.router)
 
 if settings.cors.enabled:
     app.add_middleware(
@@ -229,6 +169,8 @@ if settings.cors.enabled:
     )
 
 app.add_middleware(LoggingMiddleware)
+app.middleware("http")(rate_limit_middleware)
+app.middleware("http")(prometheus_middleware)
 
 
 @app.middleware("http")
@@ -250,15 +192,14 @@ async def add_request_id(request: Request, call_next: Any) -> Any:
     return response
 
 
+@app.get("/metrics", tags=["Observability"])
+async def prometheus_metrics() -> Response:
+    body, content_type = metrics_response()
+    return Response(content=body, media_type=content_type)
+
+
 @app.post("/api/system/shutdown", tags=["System"])
 async def system_shutdown() -> dict[str, str]:
-    """Graceful shutdown hook for the Electron desktop shell.
-
-    Spawns a background timer that exits the process once the response has
-    been flushed. State is safe: every pipeline stage persists via
-    ``CallStore.save`` and ``recover_interrupted_jobs`` re-queues anything
-    left mid-flight on the next start.
-    """
     import threading
     import time
 
@@ -273,9 +214,6 @@ async def system_shutdown() -> dict[str, str]:
 
 @app.get("/api/health", response_model=HealthResponse, tags=["Health"])
 async def health(request: Request) -> HealthResponse:
-    # Read NVIDIA settings on each probe, including a project .env. The
-    # process-wide Settings object is cached at import, so a key provided
-    # after startup would otherwise stay invisible.
     nvidia = NVidiaSettings(_env_file=".env", _env_file_encoding="utf-8")
     nvidia_key_ok = nvidia.is_configured
 
@@ -309,71 +247,158 @@ async def health(request: Request) -> HealthResponse:
 
 
 @app.get("/api/analytics", response_model=AnalyticsSummary, tags=["Calls"])
-async def analytics() -> AnalyticsSummary:
-    calls = get_store().list_calls()
-    by_status = {"completed": 0, "processing": 0, "failed": 0, "pending": 0}
-    qa_scores: list[float] = []
-    comp_scores: list[float] = []
-    sent_scores: list[float] = []
-    pii_total = 0
-    languages: dict[str, int] = {}
+async def analytics(
+    user: Annotated[UserRead | None, Depends(get_optional_user)],
+) -> AnalyticsSummary:
+    return get_analytics(_org_id(user))
 
-    for c in calls:
-        st = c.status if c.status in by_status else "pending"
-        by_status[st] = by_status.get(st, 0) + 1
-        pii_total += len(c.pii_findings)
-        if c.language:
-            languages[c.language] = languages.get(c.language, 0) + 1
-        qa = c.agents.get("qa_scorecard")
-        if qa and qa.score is not None:
-            qa_scores.append(float(qa.score))
-        cr = c.agents.get("compliance_risk")
-        if cr and cr.score is not None:
-            comp_scores.append(float(cr.score))
-        se = c.agents.get("sentiment_emotion")
-        if se and se.score is not None:
-            sent_scores.append(float(se.score))
 
-    def avg(xs: list[float]) -> float | None:
-        return round(sum(xs) / len(xs), 1) if xs else None
-
-    return AnalyticsSummary(
-        total_calls=len(calls),
-        completed=by_status["completed"],
-        processing=by_status["processing"],
-        failed=by_status["failed"],
-        pending=by_status["pending"],
-        avg_qa_score=avg(qa_scores),
-        avg_compliance_score=avg(comp_scores),
-        avg_sentiment_score=avg(sent_scores),
-        total_pii_findings=pii_total,
-        languages=languages,
-    )
+@app.get("/api/analytics/export", tags=["Calls"])
+async def export_analytics(
+    user: Annotated[UserRead | None, Depends(get_optional_user)],
+    fmt: str = Query("json", alias="format"),
+) -> Response:
+    if not settings.features.export_enabled:
+        raise HTTPException(status_code=404, detail="Export disabled")
+    summary = get_analytics(_org_id(user))
+    if fmt == "csv":
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow(["metric", "value"])
+        for key, val in summary.model_dump().items():
+            writer.writerow([key, val if not isinstance(val, dict) else json.dumps(val)])
+        return Response(content=buf.getvalue(), media_type="text/csv")
+    return JSONResponse(summary.model_dump())
 
 
 @app.get("/api/calls", tags=["Calls"])
-async def list_calls() -> dict[str, Any]:
-    items = [_list_item(c) for c in get_store().list_calls()]
-    return {"calls": items}
+async def list_calls(
+    repo: Annotated[CallRepository, Depends(get_repo)],
+    user: Annotated[UserRead | None, Depends(get_optional_user)],
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    status: str | None = Query(None),
+    search: str | None = Query(None),
+) -> dict[str, Any]:
+    records, total = repo.list_calls(
+        _org_id(user), limit=limit, offset=offset, status=status, search=search
+    )
+    return {
+        "calls": [_list_item(c) for c in records],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
 
 
 @app.get("/api/calls/{call_id}", tags=["Calls"])
-async def get_call(call_id: str) -> dict[str, Any]:
-    rec = get_store().get(call_id)
+async def get_call(
+    call_id: str,
+    repo: Annotated[CallRepository, Depends(get_repo)],
+    user: Annotated[UserRead | None, Depends(get_optional_user)],
+) -> dict[str, Any]:
+    rec = repo.get(call_id, _org_id(user))
     if rec is None:
         raise HTTPException(status_code=404, detail="Call not found")
     return rec.to_dict()
 
 
+@app.get("/api/calls/{call_id}/export", tags=["Calls"])
+async def export_call(
+    call_id: str,
+    repo: Annotated[CallRepository, Depends(get_repo)],
+    user: Annotated[UserRead | None, Depends(get_optional_user)],
+    fmt: str = Query("json", alias="format"),
+) -> Response:
+    if not settings.features.export_enabled:
+        raise HTTPException(status_code=404, detail="Export disabled")
+    rec = repo.get(call_id, _org_id(user))
+    if rec is None:
+        raise HTTPException(status_code=404, detail="Call not found")
+    if fmt == "csv":
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow(["field", "value"])
+        for key, val in rec.to_dict().items():
+            if isinstance(val, (list, dict)):
+                val = json.dumps(val)
+            writer.writerow([key, val])
+        return Response(
+            content=buf.getvalue(),
+            media_type="text/csv",
+            headers={"Content-Disposition": f'attachment; filename="{call_id}.csv"'},
+        )
+    return JSONResponse(rec.to_dict())
+
+
+@app.get("/api/calls/{call_id}/events", tags=["Calls"])
+async def call_events(
+    call_id: str,
+    repo: Annotated[CallRepository, Depends(get_repo)],
+    user: Annotated[UserRead | None, Depends(get_optional_user)],
+    access_token: str | None = Query(None),
+) -> StreamingResponse:
+    if not settings.features.websocket_enabled:
+        raise HTTPException(status_code=404, detail="Live events disabled")
+
+    from call_analysis.api.deps import auth_enforced
+    from call_analysis.auth import decode_token
+
+    if auth_enforced() and user is None and access_token:
+        token_data = decode_token(access_token)
+        if not token_data or not token_data.user_id:
+            raise HTTPException(status_code=401, detail="Invalid token")
+    elif auth_enforced() and user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    async def event_stream() -> Any:
+        from call_analysis.redis_client import JobStatusTracker
+
+        tracker = JobStatusTracker()
+        last_payload = ""
+        for _ in range(120):
+            rec = repo.get(call_id, _org_id(user))
+            if rec is None:
+                yield f"data: {json.dumps({'error': 'not_found'})}\n\n"
+                break
+            payload = {
+                "status": rec.status,
+                "progress_pct": rec.progress_pct,
+                "progress_message": rec.progress_message,
+            }
+            try:
+                redis_status = await tracker.get_status(call_id)
+                if redis_status:
+                    payload.update(redis_status)
+            except Exception:
+                pass
+            line = json.dumps(payload)
+            if line != last_payload:
+                yield f"data: {line}\n\n"
+                last_payload = line
+            if rec.status in (JobStatus.COMPLETED.value, JobStatus.FAILED.value):
+                break
+            await asyncio.sleep(1)
+        yield "data: {\"done\": true}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
 @app.delete("/api/calls/{call_id}", status_code=204, tags=["Calls"])
-async def delete_call(call_id: str) -> None:
-    if not get_store().delete(call_id):
+async def delete_call(
+    call_id: str,
+    repo: Annotated[CallRepository, Depends(get_repo)],
+    user: Annotated[UserRead | None, Depends(analyst_for_writes)],
+) -> None:
+    if not repo.delete(call_id, _org_id(user)):
         raise HTTPException(status_code=404, detail="Call not found")
 
 
 @app.post("/api/calls/upload", tags=["Calls"])
 async def upload_call(
-    file: UploadFile = File(...),  # noqa: B008 — FastAPI injection idiom
+    repo: Annotated[CallRepository, Depends(get_repo)],
+    user: Annotated[UserRead | None, Depends(analyst_for_writes)],
+    file: UploadFile = File(...),  # noqa: B008
     analyze: bool = Query(True),
 ) -> dict[str, Any]:
     if not file.filename:
@@ -391,26 +416,32 @@ async def upload_call(
 
     import tempfile
 
-    store = get_store()
     with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
         tmp.write(content)
         tmp_path = Path(tmp.name)
     try:
-        rec = store.register_upload(tmp_path, copy=True, filename=file.filename)
+        rec = repo.register_upload(
+            tmp_path, copy=True, filename=file.filename, organization_id=_org_id(user)
+        )
     finally:
         tmp_path.unlink(missing_ok=True)
 
+    org = _org_id(user)
     if analyze:
-        enqueue_analysis(rec.id)
+        enqueue_analysis(rec.id, org)
     return {"id": rec.id, "filename": rec.filename, "status": rec.status}
 
 
 @app.post("/api/calls/import-local", response_model=ImportResponse, tags=["Calls"])
-async def import_local(body: ImportLocalRequest) -> ImportResponse:
-    store = get_store()
+async def import_local(
+    body: ImportLocalRequest,
+    repo: Annotated[CallRepository, Depends(get_repo)],
+    user: Annotated[UserRead | None, Depends(analyst_for_writes)],
+) -> ImportResponse:
     imported: list[dict[str, str]] = []
     skipped: list[str] = []
-    known = {c.filename for c in store.list_calls()}
+    records, _ = repo.list_calls(_org_id(user))
+    known = {c.filename for c in records}
 
     if body.path:
         p = Path(body.path)
@@ -419,22 +450,22 @@ async def import_local(body: ImportLocalRequest) -> ImportResponse:
         if body.skip_existing and p.name in known:
             skipped.append(p.name)
         else:
-            rec = store.register_upload(p, copy=True)
+            rec = repo.register_upload(p, copy=True, organization_id=_org_id(user))
             if body.analyze:
-                enqueue_analysis(rec.id)
+                enqueue_analysis(rec.id, _org_id(user))
             imported.append({"id": rec.id, "filename": rec.filename})
     else:
-        files = store.iter_project_recordings(limit=max(body.limit * 5, body.limit))
+        files = repo.iter_project_recordings(limit=max(body.limit * 5, body.limit))
         if not files:
             raise HTTPException(status_code=404, detail="No recordings found in project folder")
         for f in files:
             if body.skip_existing and f.name in known:
                 skipped.append(f.name)
                 continue
-            rec = store.register_upload(f, copy=True)
+            rec = repo.register_upload(f, copy=True, organization_id=_org_id(user))
             known.add(f.name)
             if body.analyze:
-                enqueue_analysis(rec.id)
+                enqueue_analysis(rec.id, _org_id(user))
             imported.append({"id": rec.id, "filename": rec.filename})
             if len(imported) >= body.limit:
                 break
@@ -445,25 +476,26 @@ async def import_local(body: ImportLocalRequest) -> ImportResponse:
 
 
 def _import_paths(
-    store: CallStore,
+    repo: CallRepository,
     sources: list[tuple[Path, str]],
     *,
     analyze: bool,
     skip_existing: bool,
     limit: int,
+    organization_id: Any,
 ) -> ImportResponse:
-    """Register (file, display name) pairs and enqueue analysis for each."""
     imported: list[dict[str, str]] = []
     skipped: list[str] = []
-    known = {c.filename for c in store.list_calls()}
+    records, _ = repo.list_calls(organization_id)
+    known = {c.filename for c in records}
     for path, name in sources:
         if skip_existing and name in known:
             skipped.append(name)
             continue
-        rec = store.register_upload(path, copy=True, filename=name)
+        rec = repo.register_upload(path, copy=True, filename=name, organization_id=organization_id)
         known.add(name)
         if analyze:
-            enqueue_analysis(rec.id)
+            enqueue_analysis(rec.id, organization_id)
         imported.append({"id": rec.id, "filename": rec.filename})
         if len(imported) >= limit:
             break
@@ -471,7 +503,11 @@ def _import_paths(
 
 
 @app.post("/api/calls/import-folder", response_model=ImportResponse, tags=["Calls"])
-async def import_folder(body: ImportFolderRequest) -> ImportResponse:
+async def import_folder(
+    body: ImportFolderRequest,
+    repo: Annotated[CallRepository, Depends(get_repo)],
+    user: Annotated[UserRead | None, Depends(analyst_for_writes)],
+) -> ImportResponse:
     from call_analysis.ingest import iter_folder_audio
 
     try:
@@ -483,11 +519,12 @@ async def import_folder(body: ImportFolderRequest) -> ImportResponse:
             status_code=404, detail=f"No audio files found in folder: {body.path}"
         )
     result = _import_paths(
-        get_store(),
+        repo,
         [(f, f.name) for f in files],
         analyze=body.analyze,
         skip_existing=body.skip_existing,
         limit=body.limit,
+        organization_id=_org_id(user),
     )
     if not result.imported and not result.skipped:
         raise HTTPException(status_code=404, detail="No audio files imported")
@@ -495,20 +532,20 @@ async def import_folder(body: ImportFolderRequest) -> ImportResponse:
 
 
 @app.post("/api/calls/import-hf", response_model=ImportResponse, tags=["Calls"])
-async def import_huggingface(body: ImportHubRequest) -> ImportResponse:
+async def import_huggingface(
+    body: ImportHubRequest,
+    repo: Annotated[CallRepository, Depends(get_repo)],
+    user: Annotated[UserRead | None, Depends(analyst_for_writes)],
+) -> ImportResponse:
     import tempfile
 
-    from call_analysis.ingest import (
-        fetch_huggingface_audio,
-        validate_dataset_id,
-    )
+    from call_analysis.ingest import fetch_huggingface_audio, validate_dataset_id
 
     try:
         dataset = validate_dataset_id(body.dataset)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    store = get_store()
     try:
         with tempfile.TemporaryDirectory() as tmp:
             downloaded = await asyncio.to_thread(
@@ -524,18 +561,23 @@ async def import_huggingface(body: ImportHubRequest) -> ImportResponse:
                 )
             sources = [(p, p.name.split("_", 1)[-1]) for p in downloaded]
             return _import_paths(
-                store,
+                repo,
                 sources,
                 analyze=body.analyze,
                 skip_existing=body.skip_existing,
                 limit=body.limit,
+                organization_id=_org_id(user),
             )
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=502, detail=f"HuggingFace API error: {exc}") from exc
 
 
 @app.post("/api/calls/import-kaggle", response_model=ImportResponse, tags=["Calls"])
-async def import_kaggle(body: ImportHubRequest) -> ImportResponse:
+async def import_kaggle(
+    body: ImportHubRequest,
+    repo: Annotated[CallRepository, Depends(get_repo)],
+    user: Annotated[UserRead | None, Depends(analyst_for_writes)],
+) -> ImportResponse:
     import tempfile
 
     from call_analysis.ingest import fetch_kaggle_audio, validate_dataset_id
@@ -545,7 +587,6 @@ async def import_kaggle(body: ImportHubRequest) -> ImportResponse:
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    store = get_store()
     try:
         with tempfile.TemporaryDirectory() as tmp:
             downloaded = await asyncio.to_thread(
@@ -560,11 +601,12 @@ async def import_kaggle(body: ImportHubRequest) -> ImportResponse:
                     detail=f"No audio files found in Kaggle dataset '{dataset}'",
                 )
             return _import_paths(
-                store,
+                repo,
                 [(p, p.name) for p in downloaded],
                 analyze=body.analyze,
                 skip_existing=body.skip_existing,
                 limit=body.limit,
+                organization_id=_org_id(user),
             )
     except RuntimeError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -573,8 +615,12 @@ async def import_kaggle(body: ImportHubRequest) -> ImportResponse:
 
 
 @app.post("/api/calls/{call_id}/analyze", tags=["Calls"])
-async def analyze_call(call_id: str) -> dict[str, Any]:
-    rec = get_store().get(call_id)
+async def analyze_call(
+    call_id: str,
+    repo: Annotated[CallRepository, Depends(get_repo)],
+    user: Annotated[UserRead | None, Depends(analyst_for_writes)],
+) -> dict[str, Any]:
+    rec = repo.get(call_id, _org_id(user))
     if rec is None:
         raise HTTPException(status_code=404, detail="Call not found")
     if rec.status == JobStatus.PROCESSING.value:
@@ -583,16 +629,23 @@ async def analyze_call(call_id: str) -> dict[str, Any]:
     rec.progress_pct = 0.0
     rec.progress_message = "Queued"
     rec.error = None
-    get_store().save(rec)
-    enqueue_analysis(rec.id)
+    repo.save(rec, _org_id(user))
+    enqueue_analysis(rec.id, _org_id(user))
     return {"id": rec.id, "filename": rec.filename, "status": JobStatus.PROCESSING.value}
 
 
 @app.post("/api/calls/{call_id}/copilot", response_model=CopilotResponse, tags=["Calls"])
-async def copilot(call_id: str, body: CopilotRequest) -> CopilotResponse:
+async def copilot(
+    call_id: str,
+    body: CopilotRequest,
+    repo: Annotated[CallRepository, Depends(get_repo)],
+    user: Annotated[UserRead | None, Depends(get_optional_user)],
+) -> CopilotResponse:
+    if not settings.features.copilot_enabled:
+        raise HTTPException(status_code=404, detail="Copilot disabled")
     from call_analysis.agents.orchestrator import answer_copilot
 
-    rec = get_store().get(call_id)
+    rec = repo.get(call_id, _org_id(user))
     if rec is None:
         raise HTTPException(status_code=404, detail="Call not found")
     if rec.status != JobStatus.COMPLETED.value:
@@ -640,7 +693,9 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
 
 def create_app(store: CallStore | None = None) -> FastAPI:
     """Create app instance for testing (injects a CallStore)."""
-    global _store
     if store is not None:
-        _store = store
+        from call_analysis.repository import reset_storage_backend_cache
+
+        reset_storage_backend_cache()
+        set_call_repository(FileCallRepository(store))
     return app

@@ -40,8 +40,18 @@ def default_data_dir() -> Path:
 class CallStore:
     """Filesystem-backed store for analyzed calls."""
 
-    def __init__(self, data_dir: Path | None = None) -> None:
-        self.data_dir = data_dir or default_data_dir()
+    def __init__(
+        self,
+        data_dir: Path | None = None,
+        *,
+        organization_id: str | None = None,
+    ) -> None:
+        base = data_dir or default_data_dir()
+        if organization_id:
+            self.data_dir = base / "orgs" / organization_id
+        else:
+            self.data_dir = base
+        self.organization_id = organization_id
         self.uploads_dir = self.data_dir / "uploads"
         self.calls_dir = self.data_dir / "calls"
         self.audio_dir = self.data_dir / "audio"
@@ -52,7 +62,7 @@ class CallStore:
         return self.calls_dir / f"{call_id}.json"
 
     def new_id(self) -> str:
-        return uuid.uuid4().hex[:12]
+        return str(uuid.uuid4())
 
     def save(self, record: CallRecord) -> CallRecord:
         record.touch()
@@ -99,12 +109,13 @@ class CallStore:
         *,
         copy: bool = True,
         filename: str | None = None,
+        call_id: str | None = None,
     ) -> CallRecord:
         """Register a local recording (copy into data/uploads unless copy=False)."""
         source = Path(source)
         if not source.is_file():
             raise FileNotFoundError(f"Audio file not found: {source}")
-        call_id = self.new_id()
+        call_id = call_id or self.new_id()
         name = filename or source.name
         if copy:
             dest = self.uploads_dir / f"{call_id}_{_safe_name(name)}"

@@ -124,6 +124,7 @@ call-process = "call_analysis.process_cli:main"
 call-worker = "call_analysis.worker:main"
 call-migrate = "call_analysis.migrate:main"
 call-init-db = "call_analysis.init_db:main"
+call-seed = "call_analysis.seed:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

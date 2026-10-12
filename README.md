@@ -6,7 +6,7 @@ End-to-end contact center platform on the **NVIDIA free AI stack** (hosted NIM v
 
 ## Status
 
-Call Analysis is actively maintained and is being shipped as a self-hosted Docker Compose stack (API, Celery worker and beat, PostgreSQL, Redis, OpenTelemetry Collector, Prometheus, and Grafana) and as a Windows desktop installer (an Electron shell plus an NSIS setup that bundles a PyInstaller backend). What works today is the local dashboard: upload a recording or import audio from a folder, a Hugging Face dataset, or a Kaggle dataset; ffmpeg converts it, faster-whisper transcribes it, a pause-based heuristic assigns speakers, and regular expressions redact common PII (email, phone, card, SSN, Aadhaar, and account numbers). With an NVIDIA API key, six NIM agents produce a QA scorecard, compliance flags, sentiment, root cause, CRM follow-ups, and a call copilot. Calls are stored as JSON files and analysis runs in-process on the API. PostgreSQL models, Alembic migrations, JWT and API-key helpers, and Celery tasks ship in the repository and Compose starts those services, but the dashboard HTTP API does not mount the auth, organization, or webhook routes. There is no hosted demo yet.
+Call Analysis ships as a self-hosted Docker Compose stack (API, Celery worker and beat, PostgreSQL, Redis, OpenTelemetry Collector, Prometheus, and Grafana) and as a Windows desktop installer (Electron + PyInstaller backend). The dashboard supports upload and batch import (local folder, Hugging Face, Kaggle), full ASR → diarization → PII → multi-agent analysis, fleet analytics, export (when enabled), and live progress via SSE. **Production mode** (`ENVIRONMENT=production` or `FEATURE_MULTI_TENANT=true`) uses PostgreSQL as the source of truth, Celery for async jobs, JWT/API-key auth, org-scoped storage, webhooks, rate limiting, and Prometheus `/metrics`. **Local/desktop mode** keeps the zero-config JSON file store and in-process workers when PostgreSQL is unavailable.
 
 ## ��� Features
 
@@ -66,6 +66,8 @@ python -m pip install -e ".[prod]"
 python -m call_analysis.init_db
 # Or run migrations:
 python -m call_analysis.migrate upgrade head
+# Seed default org + admin user (production):
+python -m call_analysis.seed
 ```
 
 ### 4. Start Services

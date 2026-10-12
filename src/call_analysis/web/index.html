@@ -72,7 +72,21 @@
           <h2>Calls</h2>
           <button id="refreshBtn" class="btn ghost" type="button">↻</button>
         </div>
+        <div class="ingest-row" style="margin-bottom:8px">
+          <select id="filterStatus" class="text-input" aria-label="Filter by status">
+            <option value="">All statuses</option>
+            <option value="pending">Pending</option>
+            <option value="processing">Processing</option>
+            <option value="completed">Completed</option>
+            <option value="failed">Failed</option>
+          </select>
+        </div>
+        <input id="filterSearch" class="text-input" type="search" placeholder="Search filename…" style="margin-bottom:8px;width:100%" />
         <ul id="callList" class="call-list"></ul>
+      </div>
+
+      <div class="panel">
+        <button id="loginBtn" class="btn secondary" type="button" style="width:100%">Sign in</button>
       </div>
 
       <div class="status-bar" id="healthBar">Checking NVIDIA…</div>
@@ -89,6 +103,7 @@
           </div>
         </div>
         <div class="top-actions">
+          <button id="exportBtn" class="btn secondary compact" type="button">Export JSON</button>
           <button id="reanalyzeBtn" class="btn secondary compact hidden" type="button">Re-analyze</button>
           <div class="badges" id="statusBadges"></div>
         </div>
